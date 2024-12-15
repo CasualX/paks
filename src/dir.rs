@@ -10,8 +10,7 @@ There are two types, directories and files, which share the same [`Descriptor`] 
 * File descriptors have their `content_type` non-zero (the interpretation of the value is left to the user) and the `content_size` specifies the size of the file in bytes.
 */
 
-use std::{cmp, fmt, str};
-use crate::*;
+use super::*;
 
 /// Compares if the next component of the path matches the file descriptor.
 ///
@@ -138,9 +137,11 @@ pub fn next_sibling(desc: &Descriptor, i: usize, end: usize) -> usize {
 	}
 }
 
+#[inline]
 pub fn find_desc<'a>(dir: &'a [Descriptor], path: &[u8]) -> Option<&'a Descriptor> {
 	find(dir, path).get(0)
 }
+#[inline]
 pub fn find_dir<'a>(dir: &'a [Descriptor], path: &[u8]) -> Option<&'a [Descriptor]> {
 	if path.len() == 0 {
 		Some(dir)
@@ -253,8 +254,8 @@ impl Art<'static> {
 	pub const UNICODE: Art<'static> = Art {
 		margin_open: "   ",
 		margin_closed: "│  ",
-		dir_entry: "├─ ",
-		dir_last: "└─ ",
+		dir_entry: "├─ 📁 ",
+		dir_last: "└─ 📁 ",
 		file_entry: "│  ",
 		file_last: "└  ",
 	};
@@ -266,6 +267,7 @@ pub struct Fmt<'a> {
 	art: &'a Art<'static>,
 }
 impl<'a> Fmt<'a> {
+	#[inline]
 	pub const fn new(root: &'a str, dir: &'a [Descriptor], art: &'a Art<'static>) -> Fmt<'a> {
 		Fmt { root, dir, art }
 	}
@@ -527,7 +529,7 @@ fn fsck_rec(dir: &[Descriptor], high_mark: u32, parents: Option<&FsckParents>, l
 				success = false;
 			}
 
-			// File section larger than the PAK file
+			// File section larger than the PAKS file
 			if desc.section.size > high_mark {
 				fsck_error(desc, parents, log, format_args!("invalid file section (offset={}, size={}): size too large", desc.section.offset, desc.section.size));
 				success = false;

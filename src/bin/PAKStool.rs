@@ -1,11 +1,10 @@
 /*!
-Implements PAKtool's command-line interface.
+Implements PAKStool's command-line interface.
 */
 
 #![allow(non_snake_case)]
 
 use std::{env, fs, io, io::prelude::*, path, str};
-use dataview::Pod;
 
 fn main() {
 	let args: Vec<_> = env::args().collect();
@@ -14,21 +13,21 @@ fn main() {
 	match &args[1..] {
 		&[] => print!("{}", HELP_GENERAL),
 		&["help"] => print!("{}", HELP_GENERAL),
-		&[_] => eprintln!("Error invalid syntax, see `PAKtool help`."),
+		&[_] => eprintln!("Error invalid syntax, see `PAKStool help`."),
 		&["help", cmd] => help(&[cmd]),
-		&[_, _] => eprintln!("Error invalid syntax, see `PAKtool help`."),
+		&[_, _] => eprintln!("Error invalid syntax, see `PAKStool help`."),
 		&[_pak, _key, "help", ref args @ ..] => help(args),
-		&[pak, key, "new", ref args @ ..] => new(pak, key, args),
-		&[pak, key, "tree", ref args @ ..] => tree(pak, key, args),
-		&[pak, key, "add", ref args @ ..] => add(pak, key, args),
-		&[pak, key, "copy", ref args @ ..] => copy(pak, key, args),
-		&[pak, key, "link", ref args @ ..] => link(pak, key, args),
-		&[pak, key, "cat", ref args @ ..] => cat(pak, key, args),
-		&[pak, key, "rm", ref args @ ..] => rm(pak, key, args),
-		&[pak, key, "mv", ref args @ ..] => mv(pak, key, args),
-		&[pak, key, "fsck", ref args @ ..] => fsck(pak, key, args),
-		&[pak, key, "gc", ref args @ ..] => gc(pak, key, args),
-		&[pak, key, "dbg", ref args @ ..] => dbg(pak, key, args),
+		&[paks, key, "new", ref args @ ..] => new(paks, key, args),
+		&[paks, key, "tree", ref args @ ..] => tree(paks, key, args),
+		&[paks, key, "add", ref args @ ..] => add(paks, key, args),
+		&[paks, key, "copy", ref args @ ..] => copy(paks, key, args),
+		&[paks, key, "link", ref args @ ..] => link(paks, key, args),
+		&[paks, key, "cat", ref args @ ..] => cat(paks, key, args),
+		&[paks, key, "rm", ref args @ ..] => rm(paks, key, args),
+		&[paks, key, "mv", ref args @ ..] => mv(paks, key, args),
+		&[paks, key, "fsck", ref args @ ..] => fsck(paks, key, args),
+		&[paks, key, "gc", ref args @ ..] => gc(paks, key, args),
+		&[paks, key, "dbg", ref args @ ..] => dbg(paks, key, args),
 		&[_pak, _key, cmd, ..] => eprintln!("Error unknown subcommand: {}", cmd),
 	}
 }
@@ -48,38 +47,38 @@ fn parse_key(s: &str) -> Option<paks::Key> {
 //----------------------------------------------------------------
 
 const HELP_GENERAL: &str = "\
-PAKtool - Copyright (c) 2020-2021 Casper <CasualX@users.noreply.github.com>
+PAKStool - Copyright (c) 2020-2025 Casper <CasualX@users.noreply.github.com>
 
 USAGE
-    PAKtool help <COMMAND>
-    PAKtool <PAKFILE> <KEY> <COMMAND> [..]
+    PAKStool help <COMMAND>
+    PAKStool <PAKFILE> <KEY> <COMMAND> [..]
 
 ARGUMENTS
-    PAKFILE  Path to a PAK archive to create or edit.
+    PAKFILE  Path to a PAKS archive to create or edit.
     KEY      The 128-bit encryption key encoded in hex.
     COMMAND  The subcommand to invoke.
 
 Commands are:
-    new      Creates a new empty PAK archive.
-    tree     Displays the directory of the PAK archive.
-    add      Adds a file to the PAK archive.
-    copy     Copies files to the PAK archive.
+    new      Creates a new empty PAKS archive.
+    tree     Displays the directory of the PAKS archive.
+    add      Adds a file to the PAKS archive.
+    copy     Copies files to the PAKS archive.
     link     Links the file from alternative paths.
-    cat      Reads files from the PAK archive and writes to stdout.
-    rm       Removes paths from the PAK archive.
-    mv       Moves files in the PAK archive.
+    cat      Reads files from the PAKS archive and writes to stdout.
+    rm       Removes paths from the PAKS archive.
+    mv       Moves files in the PAKS archive.
     fsck     File system consistency check.
     gc       Collects garbage left behind by removed files.
 
-    See `PAKtool help <COMMAND>` for more information on a specific command.
+    See `PAKStool help <COMMAND>` for more information on a specific command.
 
 EXAMPLES
-    PAKtool example.pak 0 new
-    PAKtool example.pak 0 add a/b/example < tests/data/example.txt
-    PAKtool example.pak 0 link a/b/example aa/bb/example
-    PAKtool example.pak 0 tree -u
-    PAKtool example.pak 0 rm a/b/example
-    PAKtool example.pak 0 cat aa/bb/example
+    PAKStool example.paks 0 new
+    PAKStool example.paks 0 add a/b/example < tests/data/example.txt
+    PAKStool example.paks 0 link a/b/example aa/bb/example
+    PAKStool example.paks 0 tree -u
+    PAKStool example.paks 0 rm a/b/example
+    PAKStool example.paks 0 cat aa/bb/example
 ";
 
 fn help(args: &[&str]) {
@@ -103,13 +102,13 @@ fn help(args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_NEW: &str = "\
-PAKtool new
+PAKStool new
 
 NAME
-    PAKtool-new - Creates a new empty PAK archive.
+    PAKStool-new - Creates a new empty PAKS archive.
 
 DESCRIPTION
-    Creates a new empty PAK archive with the given file name and encryption key.
+    Creates a new empty PAKS archive with the given file name and encryption key.
     If a file with this name already exists it will be overwritten.
 ";
 
@@ -127,16 +126,16 @@ fn new(file: &str, key: &str, _args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_TREE: &str = "\
-PAKtool tree
+PAKStool tree
 
 NAME
-    PAKtool-tree - Displays the directory of the PAK archive.
+    PAKStool-tree - Displays the directory of the PAKS archive.
 
 SYNOPSIS
-    PAKtool [..] tree [-au] [PATH]
+    PAKStool [..] tree [-au] [PATH]
 
 DESCRIPTION
-    Displays the directory of the PAK archive.
+    Displays the directory of the PAKS archive.
 
 ARGUMENTS
     -a       Display using ASCII art.
@@ -187,20 +186,20 @@ fn tree(file: &str, key: &str, mut args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_ADD: &str = "\
-PAKtool add
+PAKStool add
 
 NAME
-    PAKtool-add - Adds a file to the PAK archive.
+    PAKStool-add - Adds a file to the PAKS archive.
 
 SYNOPSIS
-    PAKtool [..] add <PATH> < <CONTENT>
+    PAKStool [..] add <PATH> < <CONTENT>
 
 DESCRIPTION
-    Adds a file to the PAK archive.
+    Adds a file to the PAKS archive.
 
 ARGUMENTS
-    PATH     The destination path in the PAK archive to put the file.
-    CONTENT  The file data to write in the PAK archive passed via stdin.
+    PATH     The destination path in the PAKS archive to put the file.
+    CONTENT  The file data to write in the PAKS archive passed via stdin.
 ";
 
 fn add(file: &str, key: &str, args: &[&str]) {
@@ -237,16 +236,16 @@ fn add(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_COPY: &str = "\
-PAKtool copy
+PAKStool copy
 
 NAME
-    PAKtool-copy - Copies files to the PAK archive.
+    PAKStool-copy - Copies files to the PAKS archive.
 
 SYNOPSIS
-    PAKtool [..] copy <PATH> [FILE]..
+    PAKStool [..] copy <PATH> [FILE]..
 
 DESCRIPTION
-    Copies files to the PAK archive.
+    Copies files to the PAKS archive.
 ";
 
 fn copy(file: &str, key: &str, args: &[&str]) {
@@ -299,7 +298,7 @@ fn copy(file: &str, key: &str, args: &[&str]) {
 		dest_path.truncate(dest_len);
 		dest_path.push_str(file_name);
 
-		// Write its contents to the PAK archive
+		// Write its contents to the PAKS archive
 		if let Err(err) = edit.create_file(dest_path.as_bytes(), &data, key) {
 			eprintln!("Error creating {}: {}", dest_path, err);
 		}
@@ -313,13 +312,13 @@ fn copy(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_LINK: &str = "\
-PAKtool link
+PAKStool link
 
 NAME
-    PAKtool-link - Links the file from alternative paths.
+    PAKStool-link - Links the file from alternative paths.
 
 SYNOPSIS
-    PAKtool [..] link <SRC> [DEST]..
+    PAKStool [..] link <SRC> [DEST]..
 
 DESCRIPTION
     Links the source file to alternative destination paths.
@@ -364,21 +363,21 @@ fn link(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_CAT: &str = "\
-PAKtool cat
+PAKStool cat
 
 NAME
-    PAKtool-cat - Reads files from the PAK archive and writes to stdout.
+    PAKStool-cat - Reads files from the PAKS archive and writes to stdout.
 
 SYNOPSIS
-    PAKtool [..] cat [PATH]..
+    PAKStool [..] cat [PATH]..
 
 DESCRIPTION
-    Reads files from the PAK archive and writes to stdout.
+    Reads files from the PAKS archive and writes to stdout.
     Each file is read in the order specified and written to stdout one after another.
     If an error happens it is printed and continues to write the rest of the files.
 
 ARGUMENTS
-    PATH     Path to the file in the PAK archive to output.
+    PATH     Path to the file in the PAKS archive to output.
 ";
 
 fn cat(file: &str, key: &str, args: &[&str]) {
@@ -412,19 +411,19 @@ fn cat(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_RM: &str = "\
-PAKtool rm
+PAKStool rm
 
 NAME
-    PAKtool-rm - Removes files from the PAK archive.
+    PAKStool-rm - Removes files from the PAKS archive.
 
 SYNOPSIS
-    PAKtool [..] rm [PATH]..
+    PAKStool [..] rm [PATH]..
 
 DESCRIPTION
-    Removes files from the PAK archive.
+    Removes files from the PAKS archive.
 
 ARGUMENTS
-    PATH     Path to the file in the PAK archive to remove.
+    PATH     Path to the file in the PAKS archive to remove.
 ";
 
 fn rm(file: &str, key: &str, args: &[&str]) {
@@ -452,16 +451,16 @@ fn rm(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_MV: &str = "\
-PAKtool mv
+PAKStool mv
 
 NAME
-    PAKtool-mv - Moves files in the PAK archive.
+    PAKStool-mv - Moves files in the PAKS archive.
 
 SYNOPSIS
-    PAKtool [..] mv <SRC> <DEST>
+    PAKStool [..] mv <SRC> <DEST>
 
 DESCRIPTION
-    Moves files in the PAK archive.
+    Moves files in the PAKS archive.
 
 ARGUMENTS
     SRC      Path to the source file.
@@ -494,16 +493,16 @@ fn mv(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_FSCK: &str = "\
-PAKtool fsck
+PAKStool fsck
 
 NAME
-    PAKtool-fsck - File system consistency check.
+    PAKStool-fsck - File system consistency check.
 
 SYNOPSIS
-    PAKtool [..] fsck
+    PAKStool [..] fsck
 
 DESCRIPTION
-    Checks the PAK file's directory for errors.
+    Checks the PAKS file's directory for errors.
 ";
 
 fn fsck(file: &str, key: &str, _args: &[&str]) {
@@ -519,7 +518,7 @@ fn fsck(file: &str, key: &str, _args: &[&str]) {
 
 	let mut log = String::new();
 	let msg = if !reader.fsck(reader.high_mark(), &mut log) {
-		"PAK file contains errors:\n"
+		"PAKS file contains errors:\n"
 	}
 	else {
 		"No errors found!\n"
@@ -531,13 +530,13 @@ fn fsck(file: &str, key: &str, _args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_GC: &str = "\
-PAKtool gc
+PAKStool gc
 
 NAME
-    PAKtool-gc - Collects garbage left behind by removed files.
+    PAKStool-gc - Collects garbage left behind by removed files.
 
 SYNOPSIS
-    PAKtool [..] gc
+    PAKStool [..] gc
 
 DESCRIPTION
     Collects garbage left behind by removed files.
@@ -563,13 +562,13 @@ fn gc(file: &str, key: &str, _args: &[&str]) {
 
 	let mut edit = match paks::MemoryEditor::from_blocks(blocks, key) {
 		Ok(edit) => edit,
-		Err(_) => return eprintln!("Error invalid {}: not a PAK file", file),
+		Err(_) => return eprintln!("Error invalid {}: not a PAKS file", file),
 	};
 
 	edit.gc();
 
 	let (data, _) = edit.finish(key);
-	if let Err(err) = fs::write(file, data.as_bytes()) {
+	if let Err(err) = fs::write(file, dataview::bytes(data.as_slice())) {
 		eprintln!("Error writing {}: {}", file, err);
 	}
 }

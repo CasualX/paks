@@ -1,14 +1,12 @@
-use std::ops;
-use crate::*;
 use super::*;
 
 /// Memory editor.
 ///
-/// This implementation keeps the entire PAK file in memory.
+/// This implementation keeps the entire PAKS file in memory.
 #[derive(Clone, Debug)]
 pub struct MemoryEditor {
-	pub(super) blocks: Vec<Block>,
-	pub(super) directory: Directory,
+	blocks: Vec<Block>,
+	directory: Directory,
 }
 
 impl MemoryEditor {
@@ -20,7 +18,7 @@ impl MemoryEditor {
 		MemoryEditor { blocks, directory }
 	}
 
-	/// Parses the bytes as the PAK file format for editing.
+	/// Parses the bytes as the PAKS file format for editing.
 	///
 	/// # Notes
 	///
@@ -41,7 +39,7 @@ impl MemoryEditor {
 		// This is necessary as internal operations have alignment requirements
 		// Copy the input into these blocks
 		let mut blocks = vec![Block::default(); bytes.len() / BLOCK_SIZE];
-		blocks.as_bytes_mut()[..bytes.len()].copy_from_slice(bytes);
+		dataview::bytes_mut(blocks.as_mut_slice())[..bytes.len()].copy_from_slice(bytes);
 
 		match from_blocks(blocks, key) {
 			Ok((blocks, directory)) => Ok(MemoryEditor { blocks, directory }),
@@ -49,7 +47,7 @@ impl MemoryEditor {
 		}
 	}
 
-	/// Parses the blocks as the PAK file format for editing.
+	/// Parses the blocks as the PAKS file format for editing.
 	pub fn from_blocks(blocks: Vec<Block>, key: &Key) -> Result<MemoryEditor, Vec<Block>> {
 		from_blocks(blocks, key).map(|(blocks, directory)| MemoryEditor { blocks, directory })
 	}
@@ -99,9 +97,35 @@ impl MemoryEditor {
 		edit_file.desc
 	}
 
+	/// Reads the contents of a file from the PAKS archive.
+	pub fn read(&self, path: &[u8], key: &Key) -> Result<Vec<u8>, ErrorKind> {
+		let desc = match self.find_file(path) {
+			Some(desc) => desc,
+			None => return Err(ErrorKind::NotFound),
+		};
+
+		self.read_data(desc, key)
+	}
+
+	/// Reads the contents of a file from the PAKS archive into a string.
+	pub fn read_to_string(&self, path: &[u8], key: &Key) -> Result<String, ErrorKind> {
+		let desc = match self.find_file(path) {
+			Some(desc) => desc,
+			None => return Err(ErrorKind::NotFound),
+		};
+
+		let data = self.read_data(desc, key)?;
+		String::from_utf8(data).map_err(|_| ErrorKind::InvalidData)
+	}
+
 	/// Decrypts the section.
 	///
-	/// The key is not required to be the same as used to open the PAK file.
+	/// The key is not required to be the same as used to open the PAKS file.
+	///
+	/// # Errors
+	///
+	/// * [`ErrorKind::InvalidInput`]: The the descriptor is not a file descriptor.
+	/// * [`ErrorKind::InvalidData`]: The file's MAC is incorrect, the file is corrupted.
 	#[inline]
 	pub fn read_section(&self, section: &Section, key: &Key) -> Result<Vec<Block>, ErrorKind> {
 		read_section(&self.blocks, section, key)
@@ -109,50 +133,18 @@ impl MemoryEditor {
 
 	/// Decrypts the contents of the given file descriptor.
 	///
-	/// The key is not required to be the same as used to open the PAK file.
-	///
-	/// # Notes
-	///
-	/// Every call decrypts and authenticates the entire section. If performance is important,
-	/// consider [`read_section`](Self::read_section) and manually extract the data.
+	/// See [`read_section`](Self::read_section) for more information.
+	#[inline]
 	pub fn read_data(&self, desc: &Descriptor, key: &Key) -> Result<Vec<u8>, ErrorKind> {
-		if !desc.is_file() {
-			return Err(ErrorKind::InvalidInput);
-		}
-
-		let blocks = read_section(&self.blocks, &desc.section, key)?;
-
-		// Figure out which part of the blocks to copy
-		let data = blocks.as_bytes();
-		let len = usize::min(data.len(), desc.content_size as usize);
-		Ok(data[..len].to_vec())
+		read_data(&self.blocks, desc, key)
 	}
 
 	/// Decrypts the contents of the given file descriptor into the dest buffer.
 	///
-	/// The key is not required to be the same as used to open the PAK file.
-	///
-	/// # Notes
-	///
-	/// Every call decrypts and authenticates the entire section. If performance is important,
-	/// consider [`read_section`](Self::read_section) and manually extract the data.
-	pub fn read_into(&self, desc: &Descriptor, key: &Key, byte_offset: usize, dest: &mut [u8]) -> Result<(), ErrorKind> {
-		if !desc.is_file() {
-			return Err(ErrorKind::InvalidInput);
-		}
-
-		let blocks = read_section(&self.blocks, &desc.section, key)?;
-
-		// Figure out which part of the blocks to copy
-		let data = match blocks.as_bytes().get(byte_offset..byte_offset + dest.len()) {
-			Some(data) => data,
-			None => return Err(ErrorKind::InvalidInput),
-		};
-
-		// Copy the data to its destination
-		dest.copy_from_slice(data);
-
-		Ok(())
+	/// See [`read_section`](Self::read_section) for more information.
+	#[inline]
+	pub fn read_data_into(&self, desc: &Descriptor, key: &Key, byte_offset: usize, dest: &mut [u8]) -> Result<(), ErrorKind> {
+		read_data_into(&self.blocks, desc, key, byte_offset, dest)
 	}
 
 	/// Compacts the referenced data blocks from file descriptors.
@@ -182,10 +174,10 @@ impl MemoryEditor {
 		self.blocks = blocks;
 	}
 
-	/// Finish editing the PAK file.
+	/// Finish editing the PAKS file.
 	///
 	/// Initializes the header, encrypts the directory and appends it to the blocks.
-	/// Returns the encrypted PAK file and the unencrypted directory for inspection.
+	/// Returns the encrypted PAKS file and the unencrypted directory for inspection.
 	pub fn finish(self, key: &Key) -> (Vec<Block>, Directory) {
 		let MemoryEditor { mut blocks, directory } = self;
 
@@ -207,7 +199,7 @@ impl MemoryEditor {
 			let (blocks, directory) = blocks.split_at_mut(high_mark);
 
 			// Safety: We've ensured there's at least enough blocks for the header before the high_mark
-			let header: &mut Header = blocks.as_data_view_mut().read_mut(0);
+			let header: &mut Header = dataview::DataView::from_mut(blocks).get_mut(0);
 
 			// Write a template header
 			*header = Header {

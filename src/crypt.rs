@@ -4,7 +4,7 @@ Authenticated Encryption
 
 Bring Your Own Authenticated Encryption based on https://eprint.iacr.org/2019/712.pdf
 
-The chosen cipher is SPECK128/128, the mode of operation is CTR.
+The chosen cipher is Speck128/128, the mode of operation is CTR.
 The authentication is CBC-MAC over the ciphertext.
 
 ```text
@@ -27,9 +27,7 @@ The authentication is CBC-MAC over the ciphertext.
 ```
 */
 
-use std::slice;
-use crate::*;
-use dataview::Pod;
+use super::*;
 
 fn xor(a: Block, b: Block) -> Block {
 	[a[0] ^ b[0], a[1] ^ b[1]]
@@ -38,7 +36,7 @@ fn counter(nonce: Block, i: usize) -> Block {
 	[nonce[0], nonce[1].wrapping_add(i as u64)]
 }
 fn random(blocks: &mut [Block]) {
-	if let Err(_) = getrandom::getrandom(blocks.as_bytes_mut()) {
+	if let Err(_) = getrandom::getrandom(dataview::bytes_mut(blocks)) {
 		random_error()
 	}
 }

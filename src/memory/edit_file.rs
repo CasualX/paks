@@ -1,9 +1,9 @@
-use crate::*;
+use super::*;
 
 /// Memory file editor.
 ///
 /// This type provides advanced capabilities for editing a file.
-/// Incorrect usage may result in corrupted file contents or even corrupt the entire PAK file.
+/// Incorrect usage may result in corrupted file contents or even corrupt the entire PAKS file.
 pub struct MemoryEditFile<'a> {
 	pub(super) desc: &'a mut Descriptor,
 	pub(super) blocks: &'a mut Vec<Block>,
@@ -19,6 +19,7 @@ impl<'a> MemoryEditFile<'a> {
 	/// Sets the content type and size for this file descriptor.
 	///
 	/// Note that a content type of `0` gets overwritten by a type of `1`.
+	#[inline]
 	pub fn set_content(&mut self, content_type: u32, content_size: u32) -> &mut MemoryEditFile<'a> {
 		self.desc.content_type = u32::max(1, content_type); // zero is reserved for directory descriptors...
 		self.desc.content_size = content_size;
@@ -28,6 +29,7 @@ impl<'a> MemoryEditFile<'a> {
 	/// Assigns an existing section object to this file descriptor.
 	///
 	/// This can be used to make different descriptors point to the same file contents.
+	#[inline]
 	pub fn set_section(&mut self, section: &Section) -> &mut MemoryEditFile<'a> {
 		self.desc.section = *section;
 		return self;
@@ -64,8 +66,8 @@ impl<'a> MemoryEditFile<'a> {
 		let blocks = &mut self.blocks[self.desc.section.range_usize()];
 
 		// Copy the data into the allocation
-		let len = usize::min(blocks.as_bytes().len(), data.len());
-		blocks.as_bytes_mut()[..len].copy_from_slice(&data[..len]);
+		let len = usize::min(dataview::bytes(blocks).len(), data.len());
+		dataview::bytes_mut(blocks)[..len].copy_from_slice(&data[..len]);
 
 		// Encrypt the data inplace
 		crypt::encrypt_section(blocks, &mut self.desc.section, key);

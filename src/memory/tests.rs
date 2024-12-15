@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 
 const EXAMPLE: &[u8] = include_str!("../../tests/data/example.txt").as_bytes();
 
@@ -6,19 +6,19 @@ const EXAMPLE: &[u8] = include_str!("../../tests/data/example.txt").as_bytes();
 fn test_simple() {
 	let ref key = [1, 2];
 
-	// Create a new PAK file and finish it
+	// Create a new PAKS file and finish it
 	let (blocks, _) = MemoryEditor::new().finish(key);
 
-	// Re-open the PAK file for editing
+	// Re-open the PAKS file for editing
 	let mut edit = MemoryEditor::from_blocks(blocks, key).expect("failed to edit");
 
 	// Add the test file
 	edit.create_file(b"example", EXAMPLE, key);
 
-	// Finish the test PAK file
+	// Finish the test PAKS file
 	let (blocks, _) = edit.finish(key);
 
-	// Re-open the PAK file for reading
+	// Re-open the PAKS file for reading
 	let reader = MemoryReader::from_blocks(blocks, key).expect("failed to read");
 
 	// Check the directory listing

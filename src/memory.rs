@@ -1,6 +1,4 @@
-use std::slice;
-use std::io::ErrorKind;
-use crate::*;
+use super::*;
 
 // Decrypts and authenticates a section.
 // Returns an error if the section range or MAC is incorrect.
@@ -27,7 +25,7 @@ fn from_blocks(mut blocks: Vec<Block>, key: &Key) -> Result<(Vec<Block>, Directo
 	}
 
 	// Decrypt the header
-	let mut header: Header = blocks.as_data_view_mut().copy(0);
+	let mut header: Header = dataview::DataView::from_mut(blocks.as_mut_slice()).read(0);
 	if !crypt::decrypt_header(&mut header, key) {
 		// MAC is incorrect!
 		return Err(blocks);
@@ -58,15 +56,36 @@ fn from_blocks(mut blocks: Vec<Block>, key: &Key) -> Result<(Vec<Block>, Directo
 	Ok((blocks, directory))
 }
 
-/// Casts the blocks to byte slice.
-#[inline]
-pub fn as_bytes(blocks: &[Block]) -> &[u8] {
-	blocks.as_bytes()
+fn read_data(blocks: &[Block], desc: &Descriptor, key: &Key) -> Result<Vec<u8>, ErrorKind> {
+	if !desc.is_file() {
+		return Err(ErrorKind::InvalidInput);
+	}
+
+	let blocks = read_section(blocks, &desc.section, key)?;
+
+	// Figure out which part of the blocks to copy
+	let data = dataview::bytes(blocks.as_slice());
+	let len = usize::min(data.len(), desc.content_size as usize);
+	Ok(data[..len].to_vec())
 }
-/// Casts the blocks to mutable byte slice.
-#[inline]
-pub fn as_bytes_mut(blocks: &mut [Block]) -> &mut [u8] {
-	blocks.as_bytes_mut()
+
+fn read_data_into(blocks: &[Block], desc: &Descriptor, key: &Key, byte_offset: usize, dest: &mut [u8]) -> Result<(), ErrorKind> {
+	if !desc.is_file() {
+		return Err(ErrorKind::InvalidInput);
+	}
+
+	let blocks = read_section(blocks, &desc.section, key)?;
+
+	// Figure out which part of the blocks to copy
+	let data = match dataview::bytes(blocks.as_slice()).get(byte_offset..byte_offset + dest.len()) {
+		Some(data) => data,
+		None => return Err(ErrorKind::InvalidInput),
+	};
+
+	// Copy the data to its destination
+	dest.copy_from_slice(data);
+
+	Ok(())
 }
 
 mod reader;

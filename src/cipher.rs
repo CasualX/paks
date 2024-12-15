@@ -1,8 +1,8 @@
 /*!
-SPECK128/128
+Speck128/128
 ============
 
-https://nsacyber.github.io/simon-speck/implementations/ImplementationGuide1.1.pdf
+<https://nsacyber.github.io/simon-speck/implementations/ImplementationGuide1.1.pdf>
 */
 
 const ROUNDS: usize = 32;
@@ -21,7 +21,6 @@ macro_rules! IR {
 	};
 }
 
-#[inline(never)]
 pub const fn expand(key: [u64; 2]) -> [u64; ROUNDS] {
 	let [mut b, mut a] = key;
 	// FIXME! LLVM does not understand rk is fully overwritten and emits zero initialization code
@@ -35,7 +34,6 @@ pub const fn expand(key: [u64; 2]) -> [u64; ROUNDS] {
 	rk
 }
 
-#[inline(never)]
 pub const fn encrypt(pt: [u64; 2], rk: &[u64; ROUNDS]) -> [u64; 2] {
 	let [mut y, mut x] = pt;
 	let mut i = 0;
@@ -47,7 +45,6 @@ pub const fn encrypt(pt: [u64; 2], rk: &[u64; ROUNDS]) -> [u64; 2] {
 }
 
 #[allow(dead_code)]
-#[inline(never)]
 pub const fn decrypt(ct: [u64; 2], rk: &[u64; ROUNDS]) -> [u64; 2] {
 	let [mut y, mut x] = ct;
 	let mut i = ROUNDS;

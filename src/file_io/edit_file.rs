@@ -1,5 +1,4 @@
-use std::{fs, io, io::prelude::*};
-use crate::*;
+use super::*;
 
 /// File file editor.
 pub struct FileEditFile<'a> {
@@ -18,6 +17,7 @@ impl<'a> FileEditFile<'a> {
 	/// Sets the content type and size for this file descriptor.
 	///
 	/// Note that a content type of `0` gets overwritten by a type of `1`.
+	#[inline]
 	pub fn set_content(&mut self, content_type: u32, content_size: u32) -> &mut FileEditFile<'a> {
 		self.desc.content_type = u32::max(1, content_type); // zero is reserved for directory descriptors...
 		self.desc.content_size = content_size;
@@ -27,6 +27,7 @@ impl<'a> FileEditFile<'a> {
 	/// Assigns an existing section object to this file descriptor.
 	///
 	/// This can be used to make different descriptors point to the same data.
+	#[inline]
 	pub fn set_section(&mut self, section: &Section) -> &mut FileEditFile<'a> {
 		self.desc.section = *section;
 		return self;
@@ -42,9 +43,8 @@ impl<'a> FileEditFile<'a> {
 		self.desc.section.offset = *self.high_mark;
 		self.desc.section.size = bytes2blocks(self.desc.content_size);
 
-		// Bump the allocation
-		// FIXME! Overflow??
-		*self.high_mark += self.desc.section.size;
+		// Bump the allocation, panic on overflow
+		*self.high_mark = self.high_mark.checked_add(self.desc.section.size).expect("PAKS file too large");
 
 		return self;
 	}
@@ -59,14 +59,14 @@ impl<'a> FileEditFile<'a> {
 		let mut blocks = vec![Block::default(); self.desc.section.size as usize];
 
 		// Copy the data in the temp allocation
-		let len = usize::min(blocks.as_bytes().len(), data.len());
-		blocks.as_bytes_mut()[..len].copy_from_slice(&data[..len]);
+		let len = usize::min(dataview::bytes(blocks.as_slice()).len(), data.len());
+		dataview::bytes_mut(blocks.as_mut_slice())[..len].copy_from_slice(&data[..len]);
 
 		// Encrypt the data inplace
 		crypt::encrypt_section(&mut blocks, &mut self.desc.section, key);
 
 		// Write the data to the file
-		let result = self.file.write_all(blocks.as_bytes());
+		let result = self.file.write_all(dataview::bytes(blocks.as_slice()));
 
 		drop(blocks);
 		result.map(|()| self)
@@ -85,7 +85,7 @@ impl<'a> FileEditFile<'a> {
 		crypt::encrypt_section(&mut blocks, &mut self.desc.section, key);
 
 		// Write the zeroes to the file
-		let result = self.file.write_all(blocks.as_bytes());
+		let result = self.file.write_all(dataview::bytes(blocks.as_slice()));
 
 		drop(blocks);
 		result.map(|()| self)
@@ -106,7 +106,7 @@ impl<'a> FileEditFile<'a> {
 		let file_offset = self.desc.section.offset as u64 * BLOCK_SIZE as u64;
 		self.file.seek(io::SeekFrom::Start(file_offset))?;
 		let mut blocks = vec![Block::default(); self.desc.section.size as usize];
-		self.file.read_exact(blocks.as_bytes_mut())?;
+		self.file.read_exact(dataview::bytes_mut(blocks.as_mut_slice()))?;
 
 		// Decrypt the data inplace
 		if !crypt::decrypt_section(&mut blocks, &self.desc.section, old_key) {
@@ -119,7 +119,7 @@ impl<'a> FileEditFile<'a> {
 
 		// Write the data back to the file
 		self.file.seek(io::SeekFrom::Start(file_offset))?;
-		self.file.write_all(blocks.as_bytes())?;
+		self.file.write_all(dataview::bytes(blocks.as_slice()))?;
 
 		Ok(())
 	}

@@ -1,5 +1,4 @@
-use std::{fmt, slice};
-use crate::*;
+use super::*;
 
 /// Directory editor.
 ///
@@ -34,11 +33,13 @@ impl From<Directory> for Vec<Descriptor> {
 }
 
 impl Directory {
+	#[inline]
 	pub(crate) fn as_blocks(&self) -> &[Block] {
 		unsafe {
 			slice::from_raw_parts(self.0.as_ptr() as *const Block, self.0.len() * Descriptor::BLOCKS_LEN)
 		}
 	}
+	#[inline]
 	pub(crate) fn as_blocks_mut(&mut self) -> &mut [Block] {
 		unsafe {
 			slice::from_raw_parts_mut(self.0.as_mut_ptr() as *mut Block, self.0.len() * Descriptor::BLOCKS_LEN)
@@ -113,6 +114,7 @@ impl Directory {
 	/// Any missing parent directories are automatically created.
 	///
 	/// Does nothing if the given descriptor is not a file descriptor.
+	#[inline]
 	pub fn create_link(&mut self, path: &[u8], file_desc: &Descriptor) {
 		if file_desc.is_file() {
 			let desc = dir::create(&mut self.0, path);
@@ -135,14 +137,14 @@ impl Directory {
 
 	/// Removes a descriptor at the given path.
 	///
-	/// Returns `false` if no descriptor is found at the given path.
+	/// Returns `None` if no descriptor is found at the given path.
 	/// The directory remains unchanged, the output argument deleted is untouched.
 	///
-	/// Returns `true` if a file descriptor is found at the given path.
-	/// The descriptor is removed and optionally copied to the deleted output argument.
+	/// Returns `Some(desc)` if a file descriptor is found at the given path.
+	/// The descriptor is removed and returned for inspection.
 	///
-	/// Returns `true` if a directory descriptor is found at the given path.
-	/// The descriptor is removed and optionally copied to the deleted output argument.
+	/// Returns `Some(desc)` if a directory descriptor is found at the given path.
+	/// The descriptor is removed and returned for inspection.
 	/// All the direct children of the removed directory are moved to its parent directory.
 	#[inline]
 	pub fn remove(&mut self, path: &[u8]) -> Option<Descriptor> {

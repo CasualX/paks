@@ -1,8 +1,15 @@
 [package]
 name = "paks"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
+license = "MIT"
+
+authors = ["Casper <CasualX@users.noreply.github.com>"]
+description = "A light-weight encrypted archive inspired by the Quake PAK format."
+repository = "https://github.com/CasualX/paks"
+readme = "readme.md"
+keywords = ["pak", "archive", "encrypted", "zip"]
 
 [dependencies]
-getrandom = "0.1"
-dataview = { version = "0.1", default-features = false }
+getrandom = "0.2"
+dataview = { version = "~1.0", default-features = false }

@@ -1,8 +1,69 @@
 /*!
-PAK file
-========
+PAKS file
+=========
 
-The PAK file format is a light-weight encrypted archive inspired by the Quake PAK format.
+The PAKS file format is a light-weight encrypted archive inspired by the Quake PAKS format.
+
+Getting started
+---------------
+
+PAKS files can be inspected with the standard file IO with [`FileReader`] and [`FileEditor`], or from memory with [`MemoryReader`] and [`MemoryEditor`].
+
+### Creating PAKS files
+
+Using a [`MemoryEditor`] instance:
+
+```
+// Create a new memory editor and choose your encryption keys
+let ref key = paks::Key::default();
+let mut editor = paks::MemoryEditor::new();
+
+// Add content to the PAKS file
+editor.create_file(b"foo/example", include_bytes!("../tests/data/example.txt"), key);
+
+// Finish the PAKS file and write to disk
+let (blocks, _) = editor.finish(key);
+# /* Don't actually write the file while running tests...
+std::fs::write("myfile.paks", paks::as_bytes(&blocks)).unwrap();
+# */
+```
+
+Using a [`FileEditor`] instance:
+
+```no_run
+# // Don't actually write files while running tests...
+// Create a new file editor and choose your encryption keys
+let ref key = paks::Key::default();
+let mut editor = paks::FileEditor::create_new("myfile.paks", key).unwrap();
+
+// Add content to the PAKS file
+editor.create_file(b"foo/example", include_bytes!("../tests/data/example.txt"), key);
+
+// Finish writing the PAKS file
+editor.finish(key).unwrap();
+
+// If the editor is dropped without calling finish
+// any changes since creating the editor are lost
+```
+
+Consider using the `PAKStool` command-line application for bundling your assets separately.
+
+### Reading PAKS files
+
+Using a [`FileReader`] instance:
+
+```no_run
+# // The test file doesn't exist...
+// Construct the key and simply open the file
+let ref key = paks::Key::default();
+let reader = paks::FileReader::open("myfile.paks", key).unwrap();
+
+// Lookup the file descriptor and read its data
+let data = reader.read(b"foo/example", key).unwrap();
+
+// If the PAKS file was tampered with without knowing the key,
+// reading the file will fail with an error
+```
 
 File Format
 -----------
@@ -17,79 +78,20 @@ This limits the file format to a maximum of 64 GiB, individual files are limited
 The [`InfoHeader`] contains a section object referencing the [`Directory`].
 
 The directory encodes a file hierarchy in a light-weight [TLV structure](https://en.wikipedia.org/wiki/Type-length-value).
-The file format expects the directory to come at the end of the PAK file.
+The file format expects the directory to come at the end of the PAKS file.
 
 The individual files' data are stored in between the header and the directory in no particular order.
 When files are removed their data isn't immediately reclaimed leaving behind gaps.
-An explicit garbage collection can rewrite the PAK file to reclaim this unused space.
+An explicit garbage collection can rewrite the PAKS file to reclaim this unused space.
 
-The encryption SPECK128/128 and authentication CBC-MAC are not optional or configurable.
-These operations are performed on a per-file basis, the whole PAK file does not need to be checked beforehand.
+The encryption Speck128/128 and authentication CBC-MAC are not optional or configurable.
+These operations are performed on a per-file basis, the whole PAKS file does not need to be checked beforehand.
 
-Getting started
----------------
-
-PAK files can be inspected with the standard file IO with [`FileReader`] and [`FileEditor`], or from memory with [`MemoryReader`] and [`MemoryEditor`].
-
-### Creating PAK files
-
-Using a [`MemoryEditor`] instance:
-
-```
-// Create a new memory editor and choose your encryption keys
-let ref key = paks::Key::default();
-let mut editor = paks::MemoryEditor::new();
-
-// Add content to the PAK file
-editor.create_file(b"foo/example", include_bytes!("../tests/data/example.txt"), key);
-
-// Finish the PAK file and write to disk
-let (blocks, _) = editor.finish(key);
-# /* Don't actually write the file while running tests...
-std::fs::write("myfile.pak", paks::as_bytes(&blocks)).unwrap();
-# */
-```
-
-Using a [`FileEditor`] instance:
-
-```no_run
-# // Don't actually write files while running tests...
-// Create a new file editor and choose your encryption keys
-let ref key = paks::Key::default();
-let mut editor = paks::FileEditor::create_new("myfile.pak", key).unwrap();
-
-// Add content to the PAK file
-editor.create_file(b"foo/example", include_bytes!("../tests/data/example.txt"), key);
-
-// Finish writing the PAK file
-editor.finish(key).unwrap();
-
-// If the editor is dropped without calling finish
-// any changes since creating the editor are lost
-```
-
-Consider using the `PAKtool` command-line application for bundling your assets separately.
-
-### Reading PAK files
-
-Using a [`FileReader`] instance:
-
-```no_run
-# // The test file doesn't exist...
-// Construct the key and simply open the file
-let ref key = paks::Key::default();
-let reader = paks::FileReader::open("myfile.pak", key).unwrap();
-
-// Lookup the file descriptor and read its data
-let desc = reader.find_file(b"foo/example").expect("file not found");
-let data = reader.read_data(desc, key).unwrap();
-
-// If the PAK file was tampered with without knowing the key,
-// reading the file will fail with an error
-```
 */
 
-use std::{fmt, mem, ops, str};
+use std::{cmp, fmt, mem, ops, slice, str};
+use std::io::ErrorKind;
+
 use dataview::Pod;
 
 // Must be a macro, inline function does not work
@@ -118,11 +120,6 @@ pub mod dir;
 mod directory;
 pub use self::directory::*;
 
-// mod memory_reader;
-// mod memory_editor;
-// pub use self::memory_reader::MemoryReader;
-// pub use self::memory_editor::{MemoryEditor, MemoryEditFile};
-
 mod file_io;
 pub use self::file_io::*;
 
@@ -131,13 +128,13 @@ pub use self::memory::*;
 
 /// Block primitive.
 ///
-/// A block is the smallest addressable unit of which the PAK file is made.
+/// A block is the smallest addressable unit of which the PAKS file is made.
 /// It defines the size and alignment of the underlying storage.
 pub type Block = [u64; 2];
 
 /// Key type.
 ///
-/// All PAK files are encrypted with the 128-bit Speck cipher.
+/// All PAKS files are encrypted with the Speck128/128 cipher.
 pub type Key = [u64; 2];
 
 const BLOCK_SIZE: usize = mem::size_of::<Block>();
@@ -145,7 +142,7 @@ const BLOCK_SIZE: usize = mem::size_of::<Block>();
 
 /// Section object.
 ///
-/// A section object defines a location in the PAK file and its cryptographic nonce and MAC.
+/// A section object defines a location in the PAKS file and its cryptographic nonce and MAC.
 #[derive(Copy, Clone, Default, Eq, PartialEq, Hash)]
 #[repr(C)]
 pub struct Section {
@@ -160,6 +157,7 @@ pub struct Section {
 }
 
 impl Section {
+	#[inline]
 	fn range_usize(&self) -> ops::Range<usize> {
 		self.offset as usize..(self.offset.wrapping_add(self.size)) as usize
 	}
@@ -200,8 +198,8 @@ pub struct InfoHeader {
 impl InfoHeader {
 	/// File format version number.
 	///
-	/// Note that this PAK library is endian sensitive.
-	/// When inspecting PAK files on a machine with incorrect endianness the version check will fail.
+	/// This library is endian-sensitive; reading a PAKS file on a machine
+	/// with the wrong endianness will cause the version check to fail.
 	pub const VERSION: u32 = u32::from_ne_bytes(*b"PAK1");
 }
 
@@ -223,11 +221,13 @@ pub struct Header {
 	/// Cryptographic MAC used to authenticate the info header.
 	pub mac: Block,
 	/// Version information and directory section.
+	///
+	/// Note that this information is encrypted by design and must be decrypted before use.
 	pub info: InfoHeader,
 }
 
 impl Header {
-	pub(crate) const SECTION: Section = Section {
+	const SECTION: Section = Section {
 		offset: Header::BLOCKS_LEN as u32 - InfoHeader::BLOCKS_LEN as u32,
 		size: InfoHeader::BLOCKS_LEN as u32,
 		nonce: [0, 0],
@@ -271,6 +271,7 @@ impl Descriptor {
 	/// The descriptor is a file descriptor if its `content_type` is non-zero.
 	/// The interpretation of this non-zero type is left to the user of the API.
 	/// Its `content_size` specifies the size of the file in bytes.
+	#[inline]
 	pub fn new(name: &[u8], content_type: u32, content_size: u32) -> Descriptor {
 		Descriptor {
 			content_type,
@@ -281,26 +282,31 @@ impl Descriptor {
 	}
 
 	/// Creates an empty file descriptor.
+	#[inline]
 	pub fn file(name: &[u8]) -> Descriptor {
 		Descriptor::new(name, 1, 0)
 	}
 
 	/// Creates a directory descriptor and given the number of children.
+	#[inline]
 	pub fn dir(name: &[u8], len: u32) -> Descriptor {
 		Descriptor::new(name, 0, len)
 	}
 
 	/// Gets the descriptor's file name.
+	#[inline]
 	pub fn name(&self) -> &[u8] {
 		self.name.get()
 	}
 
 	/// Is this a directory descriptor?
+	#[inline]
 	pub fn is_dir(&self) -> bool {
 		self.content_type == 0
 	}
 
 	/// Is this a file descriptor?
+	#[inline]
 	pub fn is_file(&self) -> bool {
 		self.content_type != 0
 	}

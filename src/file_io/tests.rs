@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 
 /// Defer a closure on drop.
 pub struct Defer<F: FnMut()>(pub F);
@@ -28,7 +28,7 @@ fn test_corrupt1() {
 
 	temp_file!("corrupt1b");
 
-	// Step 1: Create the empty PAK file
+	// Step 1: Create the empty PAKS file
 	FileEditor::create_empty("corrupt1b", key).unwrap();
 
 	// Step 2: Add example
@@ -41,11 +41,9 @@ fn test_corrupt1() {
 	// Step 5: Read linked
 	let example_text = {
 		let reader = FileReader::open("corrupt1b", key).unwrap();
-		let example_desc = reader.find_file(b"example").unwrap();
-		reader.read_data(example_desc, key).unwrap()
+		reader.read(b"example", key).unwrap()
 	};
 
 	// Corruption!
-	let example_text = String::from_utf8_lossy(&example_text);
-	assert_eq!(example_text, "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
+	assert_eq!(example_text, ALPHABET);
 }
