@@ -2,7 +2,7 @@
 PAKS file
 =========
 
-The PAKS file format is a light-weight encrypted archive inspired by the Quake PAKS format.
+The PAKS file format is a light-weight encrypted archive inspired by the Quake PAK format.
 
 Getting started
 ---------------

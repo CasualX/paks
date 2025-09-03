@@ -6,26 +6,26 @@ PAKS file
 [![docs.rs](https://docs.rs/paks/badge.svg)](https://docs.rs/paks)
 [![Build status](https://github.com/CasualX/paks/workflows/CI/badge.svg)](https://github.com/CasualX/paks/actions)
 
-The PAKS file is a light-weight encrypted archive inspired by the Quake PAK format.
+The PAKS file is a lightweight encrypted archive inspired by the Quake PAK format.
 
-Security
---------
+🔒 Security
+-----------
 
-This library implements a "Bring Your Own Authenticated Encryption" scheme using [Speck128/128](https://en.wikipedia.org/wiki/Speck_\(cipher\))
-in CTR mode with a CBC-MAC. It is not intended for serious cryptographic security.
-The encryption and authentication are primarily for obfuscation and integrity checking of game assets in your own projects.
-Use at your own risk; this is a fun, experimental format rather than a hardened security solution.
+This library implements a _"Bring Your Own Authenticated Encryption"_ scheme using [Speck128/128](https://en.wikipedia.org/wiki/Speck_\(cipher\))
+in [CTR mode](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_\(CTR\)) with a [CBC-MAC](https://en.wikipedia.org/wiki/CBC-MAC).
 
-Command-line
-------------
+**Disclaimer**: This is **not** a production-grade cryptosystem. It's designed for obfuscation and integrity checking of game assets in hobby projects. Think of it as experimental and fun, use at your own risk.
 
-This project comes with an executable program `PAKStool` for creating and modifying PAKS files from the command-line.
+🛠️ Command-line
+---------------
+
+This project ships with `PAKStool`, a command-line utility for creating and editing PAKS files.
 
 ```
 cargo install paks
 ```
 
-The above command installs the `PAKStool` utility to manipulate PAKS files.
+This installs `PAKStool` for manipulating archives:
 
 ```
 PAKStool by Casper - Copyright (c) 2020-2025 Casper <CasualX@users.noreply.github.com>
@@ -61,12 +61,12 @@ EXAMPLES
     PAKStool example.paks 0 cat aa/bb/example
 ```
 
-Examples
---------
+📖 Examples
+-----------
 
-The following code shows how to create a new PAKS file and add some content to it.
+Here's how to create a new PAKS file and add some content:
 
-Try it out locally: `cargo run --example readme1`.
+Try it locally with: `cargo run --example readme1`.
 
 ```rust
 // This file contains 65 bytes filled with `0xCF`.
@@ -87,7 +87,7 @@ fn main() {
 	let (paks, dir) = edit.finish(key);
 
 	// Print the directory.
-	print!("The directory:\n\n```\n{}```\n\n", dir.display().to_string());
+	print!("The directory:\n\n```\n{}```\n\n", dir.display());
 
 	// Print the PAKS file itself.
 	print!("The RAW data:\n\n```\n{:x?}\n```\n", paks);
@@ -103,26 +103,47 @@ fn main() {
 }
 ```
 
-File layout
------------
+📂 File layout
+--------------
 
-The layout of the PAKS file is very simple.
+The structure of a PAKS archive is straightforward:
 
-* The header contains a version info number and the location of the directory.
+* _Header_ — contains the version number and directory location.
 
-  There is no way to know whether the blob of bytes is a valid PAKS file without the correct key as everything is encrypted by design.
+  - Everything is encrypted, so without the correct key you can't tell if a blob is a valid PAKS file.
 
-* The data containing the file contents.
+* _Data_ — opaque blocks of file contents, decryptable only using directory information.
 
-  This is an opaque blob of bytes only decodable via information in the directory.
+* _Directory_ — a sequence of descriptors in a lightweight [TLV format](https://en.wikipedia.org/wiki/Type-length-value).
 
-* The directory is a sequence of descriptors encoding a light-weight [TLV structure](https://en.wikipedia.org/wiki/Type-length-value).
+  - File descriptors: store file location + cryptographic nonce for decryption.
+  - Directory descriptors: store how many child descriptors follow.
 
-  File descriptors contain the location and a cryptographic nonce for accessing the file contents.
-  Directory descriptors describe how many of the following descriptors are its children.
+[Visual representation:](images/layout.svg)
 
-License
--------
+```
++-------------------+
+|      Header       |  --> Contains version + pointer to Directory
++-------------------+
+|                   |
+|      File A       |
+|                   |  --> Data: Encrypted sections (opaque blocks)
+|      File B       |
+|                   |
++-------------------+
+|     Directory     |  --> List of descriptors:
+|   +-----------+   |
+|   | File A    | --+----> File descriptors: Metadata + pointer to Data
+|   +-----------+   |
+|   | File B    | --+----> File descriptors: Includes nonce + MAC for integrity
+|   +-----------+   |
+|   | Subdir/.. | --+----> Directory descriptors: Define hierarchy
+|   +-----------+   |
++-------------------+
+```
+
+📜 License
+----------
 
 Licensed under [MIT License](https://opensource.org/licenses/MIT), see [license.txt](license.txt).
 

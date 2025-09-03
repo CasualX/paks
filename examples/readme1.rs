@@ -17,7 +17,7 @@ fn main() {
 	let (paks, dir) = edit.finish(key);
 
 	// Print the directory.
-	print!("The directory:\n\n```\n{}```\n\n", dir.display().to_string());
+	print!("The directory:\n\n```\n{}```\n\n", dir.display());
 
 	// Print the PAKS file itself.
 	print!("The RAW data:\n\n```\n{:x?}\n```\n", paks);
