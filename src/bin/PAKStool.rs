@@ -268,20 +268,32 @@ fn copy(file: &str, key: &str, args: &[&str]) {
 	};
 
 	let mut dest_path = String::from(base_path);
-	if !dest_path.ends_with("/") {
-		dest_path.push_str("/");
-	}
-	let dest_len = dest_path.len();
 
 	for src_path in &args[1..] {
 		let src_path = path::Path::new(src_path);
 
+		let dest_len = dest_path.len();
+		copy_rec(&mut edit, src_path, &mut dest_path, true, key);
+		dest_path.truncate(dest_len);
+	}
+
+	if let Err(err) = edit.finish(key) {
+		eprintln!("Error writing {}: {}", file, err);
+	}
+}
+
+fn copy_rec(edit: &mut paks::FileEditor, src_path: &path::Path, dest_path: &mut String, root: bool, key: &paks::Key) {
+	if dest_path.len() > 0 && !dest_path.ends_with("/") {
+		dest_path.push_str("/");
+	}
+
+	if src_path.is_file() {
 		// Read the file contents
 		let data = match fs::read(src_path) {
 			Ok(data) => data,
 			Err(err) => {
 				eprintln!("Error reading {}: {}", src_path.display(), err);
-				continue;
+				return;
 			},
 		};
 
@@ -290,12 +302,11 @@ fn copy(file: &str, key: &str, args: &[&str]) {
 			Some(file_name) => file_name,
 			None => {
 				eprintln!("Error invalid file name: {}", src_path.display());
-				continue;
+				return;
 			},
 		};
 
 		// Construct destination path
-		dest_path.truncate(dest_len);
 		dest_path.push_str(file_name);
 
 		// Write its contents to the PAKS archive
@@ -303,9 +314,47 @@ fn copy(file: &str, key: &str, args: &[&str]) {
 			eprintln!("Error creating {}: {}", dest_path, err);
 		}
 	}
+	else if src_path.is_dir() {
+		if !root {
+			// Extract the directory name
+			let dir_name = match src_path.file_name().and_then(|s| s.to_str()) {
+				Some(dir_name) => dir_name,
+				None => {
+					eprintln!("Error invalid directory name: {}", src_path.display());
+					return;
+				},
+			};
 
-	if let Err(err) = edit.finish(key) {
-		eprintln!("Error writing {}: {}", file, err);
+			// Create the directory in the PAKS archive
+			dest_path.push_str(dir_name);
+			edit.create_dir(dest_path.as_bytes());
+		}
+
+		// Recurse into the directory
+		let read_dir = match fs::read_dir(src_path) {
+			Ok(read_dir) => read_dir,
+			Err(err) => {
+				eprintln!("Error reading {}: {}", src_path.display(), err);
+				return;
+			},
+		};
+
+		for entry in read_dir {
+			let entry = match entry {
+				Ok(entry) => entry,
+				Err(err) => {
+					eprintln!("Error reading {}: {}", src_path.display(), err);
+					continue;
+				},
+			};
+
+			let dest_len = dest_path.len();
+			copy_rec(edit, &entry.path(), dest_path, false, key);
+			dest_path.truncate(dest_len);
+		}
+	}
+	else {
+		eprintln!("Warning skipping {}: not a file or directory", src_path.display());
 	}
 }
 

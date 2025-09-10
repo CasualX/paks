@@ -418,10 +418,10 @@ fn flenck(path: &[u8]) -> i32 {
 	let mut components = 0;
 	for i in 0..path.len() {
 		if path[i] == b'/' || path[i] == b'\\' {
+			components += 1;
 			if i + 1 == path.len() {
 				return components;
 			}
-			components += 1;
 		}
 	}
 	return components + 1;
@@ -436,13 +436,13 @@ pub fn create<'a>(dir: &'a mut Vec<Descriptor>, path: &[u8]) -> &'a mut Descript
 	let mut tail = path;
 	let i = dir_inc(dir, &mut tail, 0);
 
-	// Number of descriptors to add
-	let inc = flenck(tail) as usize;
-
 	// Adding a descriptor which already exists
-	if inc == 0 {
+	if tail.is_empty() {
 		return &mut dir[i];
 	}
+
+	// Number of descriptors to add
+	let inc = flenck(tail) as usize;
 
 	// Update the parent directories
 	tail = path;
