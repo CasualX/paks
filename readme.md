@@ -137,7 +137,7 @@ The structure of a PAKS archive is straightforward:
 |   +-----------+   |
 |   | File B    | --+----> File descriptors: Includes nonce + MAC for integrity
 |   +-----------+   |
-|   | Subdir/.. | --+----> Directory descriptors: Define hierarchy
+|   | Dir/..    | --+----> Directory descriptors: Define hierarchy
 |   +-----------+   |
 +-------------------+
 ```

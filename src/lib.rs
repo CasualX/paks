@@ -113,9 +113,8 @@ use dataview::Pod;
 mod cipher;
 mod crypt;
 
-// The API exposed by the directory module is unstable but has to be public for paktool and friends
-#[doc(hidden)]
-pub mod dir;
+mod dir;
+pub use self::dir::TreeArt;
 
 mod directory;
 pub use self::directory::*;
@@ -331,8 +330,9 @@ const NAME_BUF_LEN: usize = 40;
 ///
 /// The length of the name is stored in the last byte of the buffer.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct Name {
-	pub buffer: [u8; NAME_BUF_LEN],
+	buffer: [u8; NAME_BUF_LEN],
 }
 
 impl Default for Name {

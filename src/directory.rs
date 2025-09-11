@@ -32,6 +32,15 @@ impl From<Directory> for Vec<Descriptor> {
 	}
 }
 
+impl ops::Deref for Directory {
+	type Target = [Descriptor];
+
+	#[inline]
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
 impl Directory {
 	#[inline]
 	pub(crate) fn as_blocks(&self) -> &[Block] {
@@ -44,18 +53,6 @@ impl Directory {
 		unsafe {
 			slice::from_raw_parts_mut(self.0.as_mut_ptr() as *mut Block, self.0.len() * Descriptor::BLOCKS_LEN)
 		}
-	}
-
-	/// Returns if there are no files or directories.
-	#[inline]
-	pub fn is_empty(&self) -> bool {
-		self.0.is_empty()
-	}
-
-	/// Returns the number of [`Descriptor`]s in the directory.
-	#[inline]
-	pub fn len(&self) -> usize {
-		self.0.len()
 	}
 
 	/// Finds a descriptor by its path.
@@ -82,7 +79,17 @@ impl Directory {
 	/// Returns a displayable directory.
 	#[inline]
 	pub fn display(&self) -> impl '_ + fmt::Display {
-		dir::Fmt::new(".", &self.0, &dir::Art::UNICODE)
+		dir::DirFmt::new(".", &self.0, &dir::TreeArt::UNICODE)
+	}
+
+	/// Returns a displayable subdirectory.
+	#[inline]
+	pub fn display_children<'a>(&'a self, path: Option<&'a str>, art: &'a dir::TreeArt<'static>) -> Option<impl 'a + fmt::Display> {
+		let children = match path {
+			Some(path) => dir::find_dir(&self.0, path.as_bytes())?,
+			None => &self.0,
+		};
+		Some(dir::DirFmt::new(path.unwrap_or("."), children, art))
 	}
 
 	/// File system consistency check.

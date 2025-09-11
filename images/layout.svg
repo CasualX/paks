@@ -45,9 +45,8 @@
 
   <!-- Subdir descriptor -->
   <rect class="subbox" x="120" y="470" width="180" height="70" />
-  <text class="label" x="130" y="492">Subdir</text>
-  <text class="label" x="130" y="510">Name</text>
-  <text class="label" x="130" y="528">Child Count</text>
+  <text class="label" x="130" y="492">Dir/..</text>
+  <text class="label" x="130" y="510">Name / Child Count</text>
 
   <!-- ARROWS -->
   <!-- Header → Directory -->

@@ -23,7 +23,7 @@ fn test_simple() {
 
 	// Check the directory listing
 	let dir = &*reader;
-	let listing = dir::to_string(".", dir.as_ref(), &dir::Art::ASCII);
+	let listing = dir::DirFmt::new(".", dir.as_ref(), &dir::TreeArt::ASCII).to_string();
 	assert_eq!(dbg!(listing), "./\n`  example\n");
 
 	// Check the test file

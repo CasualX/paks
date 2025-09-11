@@ -149,13 +149,13 @@ fn tree(file: &str, key: &str, mut args: &[&str]) {
 		None => return,
 	};
 
-	let mut art = &paks::dir::Art::UNICODE;
+	let mut art = &paks::TreeArt::UNICODE;
 	while let Some(head) = args.first().cloned() {
 		if head.starts_with("-") {
 			args = &args[1..];
 			match head {
-				"-a" => art = &paks::dir::Art::ASCII,
-				"-u" => art = &paks::dir::Art::UNICODE,
+				"-a" => art = &paks::TreeArt::ASCII,
+				"-u" => art = &paks::TreeArt::UNICODE,
 				_ => eprintln!("Unknown argument: {}", head),
 			}
 		}
@@ -174,13 +174,12 @@ fn tree(file: &str, key: &str, mut args: &[&str]) {
 		Err(err) => return eprintln!("Error opening {}: {}", file, err),
 	};
 
-	let dir = match reader.get_children(path.unwrap_or("").as_bytes()) {
-		Some(path) => path,
+	let display = match reader.display_children(path, art) {
+		Some(display) => display,
 		None => return eprintln!("Error directory not found or is a file: {}", path.unwrap_or("")),
 	};
 
-	let root = path.unwrap_or(".");
-	println!("{}", paks::dir::Fmt::new(root, dir, art));
+	println!("{}", display);
 }
 
 //----------------------------------------------------------------

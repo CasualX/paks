@@ -15,22 +15,6 @@ use super::*;
 /// Compares if the next component of the path matches the file descriptor.
 ///
 /// Returns None if the path does not match, otherwise returns the path with the descriptor's name removed.
-///
-/// # Examples
-///
-/// ```
-/// use paks::Descriptor;
-/// use paks::dir::name_eq;
-///
-/// // Create an empty descriptor with name "test"
-/// let mut desc = Descriptor::default();
-/// desc.name.set(b"test");
-///
-/// assert_eq!(name_eq(&desc, b"test"), Some(&b""[..]));
-/// assert_eq!(name_eq(&desc, b"test/a/b"), Some(&b"a/b"[..]));
-/// assert_eq!(name_eq(&desc, b"testing"), None);
-/// assert_eq!(name_eq(&desc, b"te"), None);
-/// ```
 pub fn name_eq<'a>(desc: &Descriptor, path: &'a [u8]) -> Option<&'a [u8]> {
 	let name = desc.name();
 	let mut i = 0;
@@ -61,61 +45,6 @@ pub fn name_eq<'a>(desc: &Descriptor, path: &'a [u8]) -> Option<&'a [u8]> {
 ///
 /// When iterating over a directory, calculate the next sibling index for the given descriptor.
 /// If it is a directory descriptor then its children will be skipped.
-///
-/// # Examples
-///
-/// Given the following directory structure:
-///
-/// ```text
-/// +--. Foo
-/// |  |   Bar
-/// |  `   Baz
-/// |
-/// +--. Sub
-/// |  `-. Dir
-/// |
-/// `   File
-/// ```
-///
-/// Iterating over the top level directory:
-///
-/// ```
-/// use paks::Descriptor;
-/// use paks::dir::next_sibling;
-///
-/// let dir = [
-/// 	// ...
-/// # 	Descriptor::dir(b"Foo", 2),
-/// # 	Descriptor::file(b"Bar"),
-/// # 	Descriptor::file(b"Baz"),
-/// # 	Descriptor::dir(b"Sub", 1),
-/// # 	Descriptor::dir(b"Dir", 0),
-/// # 	Descriptor::file(b"File"),
-/// ];
-/// # let results = [true, false, false, true, false, true];
-///
-/// let mut i = 0;
-/// let end = dir.len();
-/// while i < end {
-/// 	let desc = &dir[i];
-/// 	let next_i = next_sibling(desc, i, end);
-///
-/// 	// Process the descriptor
-/// 	println!("processing dir[{}] out of {}", i, end);
-/// # 	assert!(results[i]);
-///
-/// 	// Advance the iteration
-/// 	i = next_i;
-/// }
-/// ```
-///
-/// Prints the following:
-///
-/// ```text
-/// processing dir[0] out of 6
-/// processing dir[3] out of 6
-/// processing dir[5] out of 6
-/// ```
 ///
 /// # Panics
 ///
@@ -232,28 +161,28 @@ pub fn find_encrypted(encrypted_dir: &[Descriptor], mut path: &[u8], nonce: &Blo
 }
 */
 
-/// Art used to render the directory.
+/// Art used to render the directory structure.
 #[derive(Copy, Clone, Debug)]
-pub struct Art<'a> {
-	pub margin_open: &'a str,
-	pub margin_closed: &'a str,
+pub struct TreeArt<'a> {
+	pub margin_entry: &'a str,
+	pub margin_last: &'a str,
 	pub dir_entry: &'a str,
 	pub dir_last: &'a str,
 	pub file_entry: &'a str,
 	pub file_last: &'a str,
 }
-impl Art<'static> {
-	pub const ASCII: Art<'static> = Art {
-		margin_open: "   ",
-		margin_closed: "|  ",
+impl TreeArt<'static> {
+	pub const ASCII: TreeArt<'static> = TreeArt {
+		margin_entry: "|  ",
+		margin_last: "   ",
 		dir_entry: "+- ",
 		dir_last: "`- ",
 		file_entry: "|  ",
 		file_last: "`  ",
 	};
-	pub const UNICODE: Art<'static> = Art {
-		margin_open: "   ",
-		margin_closed: "│  ",
+	pub const UNICODE: TreeArt<'static> = TreeArt {
+		margin_entry: "│  ",
+		margin_last: "   ",
 		dir_entry: "├─ 📁 ",
 		dir_last: "└─ 📁 ",
 		file_entry: "│  ",
@@ -261,18 +190,19 @@ impl Art<'static> {
 	};
 }
 
-pub struct Fmt<'a> {
+/// Formats the directory structure to a string.
+pub struct DirFmt<'a> {
 	root: &'a str,
 	dir: &'a [Descriptor],
-	art: &'a Art<'static>,
+	art: &'a TreeArt<'static>,
 }
-impl<'a> Fmt<'a> {
+impl<'a> DirFmt<'a> {
 	#[inline]
-	pub const fn new(root: &'a str, dir: &'a [Descriptor], art: &'a Art<'static>) -> Fmt<'a> {
-		Fmt { root, dir, art }
+	pub const fn new(root: &'a str, dir: &'a [Descriptor], art: &'a TreeArt<'static>) -> DirFmt<'a> {
+		DirFmt { root, dir, art }
 	}
 }
-impl<'a> fmt::Display for Fmt<'a> {
+impl<'a> fmt::Display for DirFmt<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		// Print the root directory
 		f.write_str(self.root)?;
@@ -281,49 +211,14 @@ impl<'a> fmt::Display for Fmt<'a> {
 	}
 }
 
-/// Formats the directory structure to a string.
-///
-/// # Examples
-///
-/// ```
-/// use paks::Descriptor;
-///
-/// let dir = [
-/// 	Descriptor::dir(b"Foo", 2),
-/// 	Descriptor::file(b"Bar"),
-/// 	Descriptor::file(b"Baz"),
-/// 	Descriptor::dir(b"Sub", 1),
-/// 	Descriptor::dir(b"Dir", 0),
-/// 	Descriptor::file(b"File"),
-/// ];
-///
-/// let expected = "\
-/// ./
-/// +- Foo/
-/// |  |  Bar
-/// |  `  Baz
-/// |  
-/// +- Sub/
-/// |  `- Dir/
-/// |  
-/// `  File
-/// ";
-///
-/// let result = paks::dir::to_string(".", &dir, &paks::dir::Art::ASCII);
-/// # println!("\n{}", result);
-/// assert_eq!(expected, result);
-/// ```
-pub fn to_string(root: &str, dir: &[Descriptor], art: &Art<'static>) -> String {
-	Fmt::new(root, dir, art).to_string()
-}
-fn fmt_margin<W: fmt::Write>(f: &mut W, margin: u32, depth: u32, art: &Art) -> fmt::Result {
+fn fmt_margin<W: fmt::Write>(f: &mut W, margin: u32, depth: u32, art: &TreeArt) -> fmt::Result {
 	for is_last in (0..depth).map(|i| margin & 1 << i != 0) {
-		let s = if is_last { art.margin_open } else { art.margin_closed };
+		let s = if is_last { art.margin_last } else { art.margin_entry };
 		f.write_str(s)?;
 	}
 	Ok(())
 }
-fn fmt_rec<W: fmt::Write>(f: &mut W, margin: u32, depth: u32, dir: &[Descriptor], art: &Art) -> fmt::Result {
+fn fmt_rec<W: fmt::Write>(f: &mut W, margin: u32, depth: u32, dir: &[Descriptor], art: &TreeArt) -> fmt::Result {
 	// Max supported nested directories
 	if depth >= 31 {
 		return Ok(());
@@ -584,103 +479,4 @@ fn fsck_error(desc: &Descriptor, parents: Option<&FsckParents>, log: &mut dyn fm
 //----------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
-	use std::ptr;
-	use super::*;
-
-	// fn example_dir() -> Vec<Descriptor> {
-	// 	vec![
-	// 		Descriptor::file(b"before"),
-	// 		Descriptor::dir(b"a", 3),
-	// 		Descriptor::dir(b"b", 2),
-	// 		Descriptor::dir(b"c", 1),
-	// 		Descriptor::file(b"file"),
-	// 	]
-	// }
-
-	#[test]
-	fn test_find_empty() {
-		assert_eq!(find(&[], b"path"), &[]);
-	}
-
-	#[test]
-	fn test_find_desc01() {
-		let mut dir = Vec::new();
-		create(&mut dir, b"A/B/C");
-
-		let result1 = find_desc(&dir, b"A/B/C");
-		let result2 = find_desc(&dir, b"A/B/D");
-
-		assert_eq!(result1.unwrap().name(), b"C");
-		assert!(result2.is_none());
-	}
-
-	#[test]
-	fn test_find() {
-		let dir = [
-			Descriptor::file(b"before"),
-			Descriptor::dir(b"a", 3),
-			Descriptor::dir(b"b", 2),
-			Descriptor::dir(b"c", 1),
-			Descriptor::file(b"file"),
-		];
-
-		assert!(ptr::eq(find(&dir, b"before"), &dir[0..1]));
-		assert!(ptr::eq(find(&dir, b"a"), &dir[1..]));
-
-		assert!(ptr::eq(find(&dir[2..], b"b"), &dir[2..]));
-
-		assert_eq!(find(&dir, "file".as_ref()).len(), 0);
-		assert!(ptr::eq(find(&dir[4..], b"file"), &dir[4..]));
-
-		assert_eq!(find_desc(&dir, b"a\\b\\c\\file").map(|x| x as *const _), Some(&dir[4] as *const _));
-	}
-
-	#[test]
-	fn test_create_simple() {
-		let path = b"stuff.txt";
-
-		let mut dir = Vec::new();
-		create(&mut dir, path);
-
-		assert_eq!(dir.len(), 1);
-		let file = &dir[0];
-
-		assert_eq!(file.content_type, 0);
-		assert_eq!(file.content_size, 0);
-		assert_eq!(file.section, Section::default());
-		assert_eq!(file.name(), path);
-	}
-
-	#[test]
-	fn test_create_simple_dirs() {
-		let path1 = b"A/FOO";
-		let path2 = b"A/BAR";
-
-		let mut dir = Vec::new();
-		create(&mut dir, path1);
-		create(&mut dir, path2);
-
-		let result = [
-			Descriptor::dir(b"A", 2),
-			Descriptor::dir(b"FOO", 0),
-			Descriptor::dir(b"BAR", 0),
-		];
-		assert_eq!(dir, result);
-	}
-
-	// #[test]
-	// fn test_find_encrypted() {
-	// 	let mut directory = Directory::from(example_dir());
-	// 	let ref key = [42, 13];
-	// 	let mut section = Section {
-	// 		offset: 0,
-	// 		size: directory.len() as u32,
-	// 		nonce: Block::default(),
-	// 		mac: Block::default(),
-	// 	};
-	// 	crypt2::encrypt_section(directory.as_blocks_mut(), &mut section, key);
-	// 	let found = find_encrypted(directory.as_ref(), b"a/b/c/file", &section.nonce, key);
-	// 	assert!(matches!(found, Some(_)));
-	// }
-}
+mod tests;

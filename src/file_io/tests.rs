@@ -24,6 +24,10 @@ const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
 #[test]
 fn test_corrupt1() {
+	if cfg!(miri) {
+		return;
+	}
+
 	let ref key = Key::default();
 
 	temp_file!("corrupt1b");
