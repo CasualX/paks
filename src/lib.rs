@@ -46,7 +46,7 @@ editor.finish(key).unwrap();
 // any changes since creating the editor are lost
 ```
 
-Consider using the `PAKStool` command-line application for bundling your assets separately.
+Consider using the `pakscmd` command-line application for bundling your assets separately.
 
 ### Reading PAKS files
 

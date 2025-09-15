@@ -1,5 +1,5 @@
 /*!
-Implements PAKStool's command-line interface.
+Implements pakscmd's command-line interface.
 */
 
 #![allow(non_snake_case)]
@@ -13,9 +13,9 @@ fn main() {
 	match &args[1..] {
 		&[] => print!("{}", HELP_GENERAL),
 		&["help"] => print!("{}", HELP_GENERAL),
-		&[_] => eprintln!("Error invalid syntax, see `PAKStool help`."),
+		&[_] => eprintln!("Error invalid syntax, see `pakscmd help`."),
 		&["help", cmd] => help(&[cmd]),
-		&[_, _] => eprintln!("Error invalid syntax, see `PAKStool help`."),
+		&[_, _] => eprintln!("Error invalid syntax, see `pakscmd help`."),
 		&[_pak, _key, "help", ref args @ ..] => help(args),
 		&[paks, key, "new", ref args @ ..] => new(paks, key, args),
 		&[paks, key, "tree", ref args @ ..] => tree(paks, key, args),
@@ -47,11 +47,11 @@ fn parse_key(s: &str) -> Option<paks::Key> {
 //----------------------------------------------------------------
 
 const HELP_GENERAL: &str = "\
-PAKStool - Copyright (c) 2020-2025 Casper <CasualX@users.noreply.github.com>
+pakscmd - Copyright (c) 2020-2025 Casper <CasualX@users.noreply.github.com>
 
 USAGE
-    PAKStool help <COMMAND>
-    PAKStool <PAKFILE> <KEY> <COMMAND> [..]
+    pakscmd help <COMMAND>
+    pakscmd <PAKFILE> <KEY> <COMMAND> [..]
 
 ARGUMENTS
     PAKFILE  Path to a PAKS archive to create or edit.
@@ -70,15 +70,15 @@ Commands are:
     fsck     File system consistency check.
     gc       Collects garbage left behind by removed files.
 
-    See `PAKStool help <COMMAND>` for more information on a specific command.
+    See `pakscmd help <COMMAND>` for more information on a specific command.
 
 EXAMPLES
-    PAKStool example.paks 0 new
-    PAKStool example.paks 0 add a/b/example < tests/data/example.txt
-    PAKStool example.paks 0 link a/b/example aa/bb/example
-    PAKStool example.paks 0 tree -u
-    PAKStool example.paks 0 rm a/b/example
-    PAKStool example.paks 0 cat aa/bb/example
+    pakscmd example.paks 0 new
+    pakscmd example.paks 0 add a/b/example < tests/data/example.txt
+    pakscmd example.paks 0 link a/b/example aa/bb/example
+    pakscmd example.paks 0 tree -u
+    pakscmd example.paks 0 rm a/b/example
+    pakscmd example.paks 0 cat aa/bb/example
 ";
 
 fn help(args: &[&str]) {
@@ -102,10 +102,8 @@ fn help(args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_NEW: &str = "\
-PAKStool new
-
 NAME
-    PAKStool-new - Creates a new empty PAKS archive.
+    pakscmd-new - Creates a new empty PAKS archive.
 
 DESCRIPTION
     Creates a new empty PAKS archive with the given file name and encryption key.
@@ -126,13 +124,11 @@ fn new(file: &str, key: &str, _args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_TREE: &str = "\
-PAKStool tree
-
 NAME
-    PAKStool-tree - Displays the directory of the PAKS archive.
+    pakscmd-tree - Displays the directory of the PAKS archive.
 
 SYNOPSIS
-    PAKStool [..] tree [-au] [PATH]
+    pakscmd [..] tree [-au] [PATH]
 
 DESCRIPTION
     Displays the directory of the PAKS archive.
@@ -185,13 +181,11 @@ fn tree(file: &str, key: &str, mut args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_ADD: &str = "\
-PAKStool add
-
 NAME
-    PAKStool-add - Adds a file to the PAKS archive.
+    pakscmd-add - Adds a file to the PAKS archive.
 
 SYNOPSIS
-    PAKStool [..] add <PATH> < <CONTENT>
+    pakscmd [..] add <PATH> < <CONTENT>
 
 DESCRIPTION
     Adds a file to the PAKS archive.
@@ -235,13 +229,11 @@ fn add(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_COPY: &str = "\
-PAKStool copy
-
 NAME
-    PAKStool-copy - Copies files to the PAKS archive.
+    pakscmd-copy - Copies files to the PAKS archive.
 
 SYNOPSIS
-    PAKStool [..] copy <PATH> [FILE]..
+    pakscmd [..] copy <PATH> [FILE]..
 
 DESCRIPTION
     Copies files to the PAKS archive.
@@ -360,13 +352,11 @@ fn copy_rec(edit: &mut paks::FileEditor, src_path: &path::Path, dest_path: &mut 
 //----------------------------------------------------------------
 
 const HELP_LINK: &str = "\
-PAKStool link
-
 NAME
-    PAKStool-link - Links the file from alternative paths.
+    pakscmd-link - Links the file from alternative paths.
 
 SYNOPSIS
-    PAKStool [..] link <SRC> [DEST]..
+    pakscmd [..] link <SRC> [DEST]..
 
 DESCRIPTION
     Links the source file to alternative destination paths.
@@ -411,13 +401,11 @@ fn link(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_CAT: &str = "\
-PAKStool cat
-
 NAME
-    PAKStool-cat - Reads files from the PAKS archive and writes to stdout.
+    pakscmd-cat - Reads files from the PAKS archive and writes to stdout.
 
 SYNOPSIS
-    PAKStool [..] cat [PATH]..
+    pakscmd [..] cat [PATH]..
 
 DESCRIPTION
     Reads files from the PAKS archive and writes to stdout.
@@ -459,13 +447,11 @@ fn cat(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_RM: &str = "\
-PAKStool rm
-
 NAME
-    PAKStool-rm - Removes files from the PAKS archive.
+    pakscmd-rm - Removes files from the PAKS archive.
 
 SYNOPSIS
-    PAKStool [..] rm [PATH]..
+    pakscmd [..] rm [PATH]..
 
 DESCRIPTION
     Removes files from the PAKS archive.
@@ -499,13 +485,11 @@ fn rm(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_MV: &str = "\
-PAKStool mv
-
 NAME
-    PAKStool-mv - Moves files in the PAKS archive.
+    pakscmd-mv - Moves files in the PAKS archive.
 
 SYNOPSIS
-    PAKStool [..] mv <SRC> <DEST>
+    pakscmd [..] mv <SRC> <DEST>
 
 DESCRIPTION
     Moves files in the PAKS archive.
@@ -541,13 +525,11 @@ fn mv(file: &str, key: &str, args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_FSCK: &str = "\
-PAKStool fsck
-
 NAME
-    PAKStool-fsck - File system consistency check.
+    pakscmd-fsck - File system consistency check.
 
 SYNOPSIS
-    PAKStool [..] fsck
+    pakscmd [..] fsck
 
 DESCRIPTION
     Checks the PAKS file's directory for errors.
@@ -578,13 +560,11 @@ fn fsck(file: &str, key: &str, _args: &[&str]) {
 //----------------------------------------------------------------
 
 const HELP_GC: &str = "\
-PAKStool gc
-
 NAME
-    PAKStool-gc - Collects garbage left behind by removed files.
+    pakscmd-gc - Collects garbage left behind by removed files.
 
 SYNOPSIS
-    PAKStool [..] gc
+    pakscmd [..] gc
 
 DESCRIPTION
     Collects garbage left behind by removed files.

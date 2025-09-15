@@ -19,20 +19,20 @@ in [CTR mode](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Count
 🛠️ Command-line
 ---------------
 
-This project ships with `PAKStool`, a command-line utility for creating and editing PAKS files.
+This project ships with `pakscmd`, a command-line utility for creating and editing PAKS files.
 
 ```
 cargo install paks
 ```
 
-This installs `PAKStool` for manipulating archives:
+This installs `pakscmd` for manipulating archives:
 
 ```
-PAKStool by Casper - Copyright (c) 2020-2025 Casper <CasualX@users.noreply.github.com>
+pakscmd by Casper - Copyright (c) 2020-2025 Casper <CasualX@users.noreply.github.com>
 
 USAGE
-    PAKStool help <COMMAND>
-    PAKStool <PAKFILE> <KEY> <COMMAND> [..]
+    pakscmd help <COMMAND>
+    pakscmd <PAKFILE> <KEY> <COMMAND> [..]
 
 ARGUMENTS
     PAKFILE  Path to a PAKS archive to create or edit.
@@ -50,15 +50,15 @@ Commands are:
     mv       Moves files in the PAKS archive.
     gc       Collects garbage left behind by removed files.
 
-    See `PAKStool help <COMMAND>` for more information on a specific command.
+    See `pakscmd help <COMMAND>` for more information on a specific command.
 
 EXAMPLES
-    PAKStool example.paks 0 new
-    PAKStool example.paks 0 add a/b/example < tests/data/example.txt
-    PAKStool example.paks 0 link a/b/example aa/bb/example
-    PAKStool example.paks 0 tree -u
-    PAKStool example.paks 0 rm a/b/example
-    PAKStool example.paks 0 cat aa/bb/example
+    pakscmd example.paks 0 new
+    pakscmd example.paks 0 add a/b/example < tests/data/example.txt
+    pakscmd example.paks 0 link a/b/example aa/bb/example
+    pakscmd example.paks 0 tree -u
+    pakscmd example.paks 0 rm a/b/example
+    pakscmd example.paks 0 cat aa/bb/example
 ```
 
 📖 Examples
