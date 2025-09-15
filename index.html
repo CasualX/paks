@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>pakscmd — web viewer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root{
+    --bg:#0f1113; --panel:#141618; --muted:#9aa0a6; --accent:#4caf50;
+    --danger:#ff5c57; --card:#17181b; --border:#252627; --highlight:#1f6feb33;
+  }
+  html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial; background:var(--bg); color:#ddd;}
+  /* layout */
+  .app { display:flex; flex-direction:column; height:100vh; }
+  header { background:#0b0c0e; border-bottom:1px solid var(--border); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
+  header h1{ font-size:16px; margin:0; text-transform:lowercase; letter-spacing:0.6px; color:#e6eef8;}
+  header .file { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  header .file .close { cursor:pointer; color:var(--danger); font-weight:700; padding:2px 6px; border-radius:4px; background:transparent; }
+  main { flex:1; display:flex; overflow:hidden; }
+  /* upload view */
+  .upload {
+    margin:auto; width:92%; max-width:880px; background:var(--panel); border-radius:8px; padding:20px; border:1px solid var(--border);
+    display:flex; gap:20px; align-items:stretch; justify-content:space-between; flex-direction:column; overflow:hidden;
+  }
+  .drop {
+  width:100%; min-height:140px; border:2px dashed #232426; border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted);
+    background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+  cursor:pointer; text-align:center; padding:18px; box-sizing:border-box; max-width:100%;
+  }
+  .controls { width:100%; display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+  .controls .left { display:flex; gap:8px; align-items:center; }
+  input[type="text"]{ background:#0e0f10; border:1px solid var(--border); padding:8px 10px; color:#ddd; border-radius:6px; min-width:300px; }
+  input[type="file"]{ display:none; }
+  button { background:var(--accent); border:none; color:white; padding:8px 12px; border-radius:6px; cursor:pointer; }
+  button.ghost{ background:transparent; border:1px solid var(--border); color:var(--muted); }
+  .muted { color:var(--muted); font-size:13px; }
+  /* content view */
+  .content { display:flex; flex:1; min-height:0; } /* allow children to scroll */
+  nav.tree { width:320px; background:var(--card); border-right:1px solid var(--border); padding:12px; overflow:auto; }
+  nav ul{ list-style:none; padding-left:10px; margin:0; }
+  /* entries are the clickable rows; only they highlight on hover/selection */
+  nav .entry { padding:6px 8px; border-radius:6px; margin:4px 0; cursor:pointer; display:flex; align-items:center; gap:8px; user-select:none; }
+  nav .entry { display:flex; align-items:center; }
+  nav .entry:hover{ background:var(--highlight); }
+  nav .entry.selected{ background:#234a88; color:white; }
+  nav .icon { width:14px; display:inline-block; opacity:0.9; }
+  /* caret gutter to align file/folder icons */
+  nav .caret, nav .caret-spacer { width:14px; display:inline-block; color:var(--muted); text-align:center; flex:0 0 14px; }
+  nav .name { flex:1 1 auto; }
+  /* folder children are hidden unless folder li has .open */
+  nav li.folder > ul.children { display:none; padding-left:12px; margin:0; list-style:none; }
+  nav li.folder.open > ul.children { display:block; }
+  section.preview { flex:1; padding:16px; overflow:auto; background:linear-gradient(180deg,#0f1113, #0b0b0b); }
+  .file-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+  .file-meta .path { color:var(--muted); font-size:13px; word-break:break-all; }
+  .file-meta .actions { display:flex; gap:8px; align-items:center; }
+  pre.preview-box { background:#0b0c0d; border:1px solid var(--border); padding:12px; border-radius:6px; color:#dfe7ef; white-space:pre-wrap; word-break:break-word; overflow:auto; }
+  .statusbar { height:42px; background:#0b0b0c; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 14px; color:var(--muted); }
+  .error { background:#2b0f0f; border:1px solid rgba(255,0,0,0.15); color:#ffb3b3; padding:8px 10px; border-radius:6px; margin-top:12px; }
+  /* small */
+  .small { font-size:13px; color:var(--muted); }
+  /* selects */
+  select { background:#0e0f10; border:1px solid var(--border); padding:8px 10px; color:#ddd; border-radius:6px; font-size:13px; }
+  /* media preview */
+  .preview-media { background:#0b0c0d; border:1px solid var(--border); padding:12px; border-radius:6px; display:none; }
+  .preview-media img { max-width:100%; height:auto; display:block; margin:auto; }
+  .preview-media audio { width:100%; display:block; }
+  @media (max-width:880px){ nav.tree{ width:240px } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>pakscmd web</h1>
+    <div class="file" id="header-file">
+      <span id="header-filename"></span>
+      <span id="header-close" class="close" title="Close" aria-label="Close" style="display:none;">✕</span>
+    </div>
+  </header>
+
+  <main id="main-area">
+    <!-- upload view -->
+    <div class="upload" id="upload-view" aria-hidden="false">
+
+  <div class="drop" id="dropzone">drop a .paks file here or click to choose one</div>
+
+      <div class="controls" style="width:100%;">
+        <div class="left">
+          <label for="file-input" class="ghost-btn">
+            <button id="choose-btn" class="ghost">choose file</button>
+          </label>
+          <input id="file-input" type="file" accept=".paks" />
+          <input id="key" type="text" placeholder="enter 128-bit key in hex (eg. 0123...)" />
+        </div>
+        <div>
+          <button id="open-btn">open</button>
+        </div>
+      </div>
+
+      <div id="upload-error" style="width:100%; display:none;"></div>
+    </div>
+
+    <!-- content view (hidden initially) -->
+    <div class="content" id="content-view" style="display:none; width:100%;">
+      <nav class="tree" id="tree"></nav>
+      <section class="preview">
+        <div id="preview-empty">
+          <div class="muted">no file selected</div>
+        </div>
+        <div id="preview-ctx" style="display:none;">
+          <div class="file-meta">
+            <div class="path" id="file-path"></div>
+            <div class="actions">
+              <label for="preview-mode" class="small" style="margin-right:4px;">preview:</label>
+              <select id="preview-mode" title="Choose preview mode">
+                <option value="auto">auto</option>
+                <option value="text">text</option>
+                <option value="hex">hex</option>
+                <option value="image">image</option>
+                <option value="audio">audio</option>
+              </select>
+              <button id="download-file" disabled>download file</button>
+            </div>
+          </div>
+          <pre id="preview" class="preview-box"></pre>
+          <div id="preview-hex" style="margin-top:12px; display:none;"><div class="small muted">hex preview (first 512 bytes)</div><pre id="preview-hex-box" class="preview-box"></pre></div>
+          <div id="preview-media" class="preview-media">
+            <img id="preview-img" alt="image preview" style="display:none;" />
+            <audio id="preview-audio" controls style="display:none;"></audio>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="statusbar" id="status">status: idle</div>
+</div>
+
+<script>
+(async () => {
+  // ---------- state ----------
+  let wasm, exports;
+  let memory;
+  let lastResult = null; // { type: "json"|"data"|"error", buf: Uint8Array }
+  let activeEditorPtr = 0; // pointer to paks::MemoryEditor (returned from paks_open)
+  let currentFileBytes = null; // Uint8Array of last-read file
+  let keyPtr = 0; // pointer to paks::Key
+  let uploadedDataPtr = 0; // ptr to bytes passed to wasm (we free after paks_open)
+  let uploadedDataLen = 0;
+  let currentFilename = null; // .paks file name
+  let currentFilePath = null; // selected file path within archive
+  const previewPrefs = new Map(); // per-file preview mode preferences
+  // ---------- dom ----------
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const chooseBtn = document.getElementById('choose-btn');
+  const keyInput = document.getElementById('key');
+  const openBtn = document.getElementById('open-btn');
+  const uploadView = document.getElementById('upload-view');
+  const uploadError = document.getElementById('upload-error');
+  const contentView = document.getElementById('content-view');
+  const treeEl = document.getElementById('tree');
+  const previewEl = document.getElementById('preview');
+  const previewEmpty = document.getElementById('preview-empty');
+  const previewCtx = document.getElementById('preview-ctx');
+  const previewHexEl = document.getElementById('preview-hex');
+  const previewHexBox = document.getElementById('preview-hex-box');
+  const previewMedia = document.getElementById('preview-media');
+  const previewImg = document.getElementById('preview-img');
+  const previewAudio = document.getElementById('preview-audio');
+  const previewMode = document.getElementById('preview-mode');
+  const filePathEl = document.getElementById('file-path');
+  const downloadFileBtn = document.getElementById('download-file');
+  const headerFile = document.getElementById('header-file');
+  const headerFilename = document.getElementById('header-filename');
+  const headerClose = document.getElementById('header-close');
+  const statusBar = document.getElementById('status');
+  let currentObjectUrl = null; // for image/audio object URLs
+
+  // ---------- helpers for UI ----------
+  function setStatus(txt){ statusBar.textContent = 'status: ' + txt; }
+  function showError(msg){
+    uploadError.style.display = 'block';
+    uploadError.className = 'error';
+    uploadError.textContent = msg;
+    setStatus('error: ' + msg);
+  }
+  function clearError(){
+    uploadError.style.display = 'none';
+    uploadError.textContent = '';
+    setStatus('ready');
+  }
+
+  // ---------- wasm import functions (these will be called synchronously by the wasm) ----------
+  const imports = {
+    env: {
+      random_bytes(ptr, len){
+        // fill memory with crypto random bytes
+        const buf = new Uint8Array(memory.buffer, ptr, len);
+        crypto.getRandomValues(buf);
+      },
+      // wasm will call result_json(ptr,len) to hand us a json string
+      result_json(ptr, len){
+        const buf = new Uint8Array(memory.buffer, ptr, len);
+        lastResult = { type: 'json', buf: new Uint8Array(buf) };
+      },
+      // wasm will call result_data(ptr,len) to hand us raw file bytes
+      result_data(ptr, len){
+        const buf = new Uint8Array(memory.buffer, ptr, len);
+        lastResult = { type: 'data', buf: new Uint8Array(buf) };
+      },
+      // wasm will call result_error(ptr,len) to hand us an error json string
+      result_error(ptr, len){
+        const buf = new Uint8Array(memory.buffer, ptr, len);
+        lastResult = { type: 'error', buf: new Uint8Array(buf) };
+      }
+    }
+  };
+
+  // ---------- load wasm ----------
+  try {
+    setStatus('loading wasm...');
+    const resp = await fetch('paks.wasm');
+    if (!resp.ok) throw new Error('failed to fetch paks.wasm');
+    const bytes = await resp.arrayBuffer();
+    const mod = await WebAssembly.instantiate(bytes, imports);
+    wasm = mod.instance;
+    exports = wasm.exports;
+    memory = exports.memory;
+    setStatus('wasm loaded');
+  } catch (err) {
+    setStatus('wasm load failed');
+    showError('could not load paks.wasm — ' + err);
+    console.error(err);
+    return;
+  }
+
+  // ---------- memory helpers ----------
+  const textEncoder = new TextEncoder();
+  const textDecoder = new TextDecoder();
+
+  function allocBytes(u8){
+    const ptr = exports.alloc(u8.length);
+    if (!ptr) throw new Error('wasm alloc failed');
+    const mem = new Uint8Array(memory.buffer, ptr, u8.length);
+    mem.set(u8);
+    return ptr;
+  }
+  function freePtr(ptr, len){
+    if (!ptr) return;
+    try{ exports.dealloc(ptr, len || 0); } catch(e){ console.warn('dealloc failed', e); }
+  }
+  function allocString(str){
+    const u8 = textEncoder.encode(str);
+    const ptr = allocBytes(u8);
+    return { ptr, len: u8.length };
+  }
+  function readResultAsString(res){
+    if (!res) return null;
+    return textDecoder.decode(res.buf);
+  }
+
+  // helper to call key_parse and keep its pointer (or read error)
+  function parseKey(hex){
+    if (keyPtr) { exports.key_free(keyPtr); keyPtr = 0; }
+    const s = allocString(hex);
+    const kptr = exports.key_parse(s.ptr, s.len);
+    freePtr(s.ptr, s.len);
+    // key_parse writes error via result_error in its implementation on failure
+    if (kptr === 0) {
+      // extract lastResult error
+      if (lastResult && lastResult.type === 'error'){
+        const j = readResultAsString(lastResult);
+        lastResult = null;
+        return { ok:false, err: j };
+      }
+      return { ok:false, err: 'key_parse failed' };
+    }
+    keyPtr = kptr;
+    return { ok:true, ptr:kptr };
+  }
+
+  // ---------- UI interactions (upload) ----------
+  function setUploadDrag(active){
+    dropzone.style.borderColor = active ? '#3a77ff' : '#232426';
+    dropzone.style.background = active ? 'linear-gradient(180deg, rgba(63,120,255,0.04), transparent)' : '';
+  }
+
+  dropzone.addEventListener('click', ()=> fileInput.click());
+  chooseBtn.addEventListener('click', ()=> fileInput.click());
+
+  dropzone.addEventListener('dragover', (e)=>{
+    e.preventDefault();
+    setUploadDrag(true);
+  });
+  dropzone.addEventListener('dragleave', (e)=>{
+    e.preventDefault();
+    setUploadDrag(false);
+  });
+  dropzone.addEventListener('drop', async (e)=>{
+    e.preventDefault();
+    setUploadDrag(false);
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) {
+      fileInput.files = e.dataTransfer.files;
+      await handleFileSelected(f);
+    }
+  });
+
+  fileInput.addEventListener('change', async (e)=>{
+    const f = e.target.files && e.target.files[0];
+    if (f) await handleFileSelected(f);
+  });
+
+  async function handleFileSelected(file){
+    clearError();
+    currentFilename = file.name;
+    headerFilename.textContent = file.name;
+    headerClose.style.display = 'inline';
+    // keep the file bytes in memory until open
+    const ab = await file.arrayBuffer();
+    uploadedDataLen = ab.byteLength;
+    // free previous pointer if any
+    if (uploadedDataPtr) { freePtr(uploadedDataPtr, uploadedDataLen); uploadedDataPtr = 0; uploadedDataLen = 0; }
+    const u8 = new Uint8Array(ab);
+    uploadedDataPtr = allocBytes(u8);
+    uploadedDataLen = u8.length;
+    setStatus(`file ${file.name} loaded (${humanSize(u8.length)}) — enter key and click open`);
+  }
+
+  // ---------- open button ----------
+  openBtn.addEventListener('click', async ()=>{
+    clearError();
+    if (!uploadedDataPtr) { showError('no file selected'); return; }
+    const keyHex = keyInput.value.trim();
+    if (!keyHex) { showError('please enter key as hex'); return; }
+
+    setStatus('parsing key...');
+    lastResult = null;
+    const kp = parseKey(keyHex);
+    if (!kp.ok) {
+      showError('key error: ' + (kp.err || 'unknown'));
+      return;
+    }
+
+    setStatus('opening archive...');
+    lastResult = null;
+    // call paks_open: paks_open(data_ptr, data_len, key_ptr) -> memoryeditor ptr or null
+    const pptr = exports.paks_open(uploadedDataPtr, uploadedDataLen, keyPtr);
+    // we can free the uploaded bytes after opening (MemoryEditor presumably copied or used)
+    freePtr(uploadedDataPtr, uploadedDataLen);
+    uploadedDataPtr = 0;
+    uploadedDataLen = 0;
+
+    if (pptr === 0) {
+      // wasm signalled error via result_error -> lastResult
+      if (lastResult && lastResult.type === 'error') {
+        const errstr = readResultAsString(lastResult);
+        lastResult = null;
+        showError('open failed: ' + errstr);
+        return;
+      } else {
+        showError('open failed: unknown error');
+        return;
+      }
+    }
+
+    activeEditorPtr = pptr;
+    setStatus('archive opened');
+    // hide upload view / show file view
+    uploadView.style.display = 'none';
+    contentView.style.display = 'flex';
+    headerFilename.textContent = currentFilename + '  ';
+    headerClose.style.display = 'inline';
+    // show empty preview state initially
+    previewEmpty.style.display = 'block';
+    previewCtx.style.display = 'none';
+    // fetch directory listing
+    await doList();
+  });
+
+  // ---------- list dir (calls paks_ls which triggers result_json) ----------
+  async function doList(){
+    if (!activeEditorPtr) return;
+    lastResult = null;
+    // paks_ls writes JSON via result_json(ptr,len) -> we read lastResult afterwards
+    try {
+      exports.paks_ls(activeEditorPtr);
+    } catch (e) {
+      showError('paks_ls threw: ' + e);
+      return;
+    }
+    if (!lastResult) { showError('paks_ls returned no result'); return; }
+    if (lastResult.type === 'error') {
+      const err = readResultAsString(lastResult);
+      lastResult = null;
+      showError('list error: ' + err);
+      return;
+    }
+    if (lastResult.type !== 'json') { showError('list: unexpected result'); return; }
+    const jsonStr = readResultAsString(lastResult);
+    lastResult = null;
+    let tree;
+    try {
+      tree = JSON.parse(jsonStr);
+    } catch (e) {
+      showError('invalid json from paks_ls: ' + e);
+      return;
+    }
+    renderTree(tree);
+    setStatus('directory loaded');
+  }
+
+  // ---------- render tree ----------
+  function renderTree(entries){
+    treeEl.innerHTML = '';
+    // tree is Vec<LsEntry> where LsEntry is tagged enum with {ty:"File"/"Dir"}
+    // we render each top-level entry
+    const ul = document.createElement('ul');
+    buildEntries(entries, ul, '');
+    treeEl.appendChild(ul);
+  }
+
+  function buildEntries(entries, parentUl, parentPath){
+    for (const e of entries){
+      if (e.ty === 'Dir' || e.ty === 'Dir'){
+        const li = document.createElement('li');
+        li.classList.add('folder');
+
+        // folder header entry
+        const header = document.createElement('div');
+        header.className = 'entry folder-entry';
+        header.innerHTML = `<span class="caret">▸</span><span class="icon">📁</span><span class="name">${escapeHtml(e.name)}</span>`;
+        header.addEventListener('click', (ev)=>{
+          ev.stopPropagation();
+          li.classList.toggle('open');
+          const c = header.querySelector('.caret');
+          if (c) c.textContent = li.classList.contains('open') ? '▾' : '▸';
+        });
+        li.appendChild(header);
+
+        // children list
+        const childUl = document.createElement('ul');
+        childUl.className = 'children';
+        if (e.children && e.children.length>0){
+          buildEntries(e.children, childUl, parentPath + e.name + '/');
+        }
+        li.appendChild(childUl);
+
+        parentUl.appendChild(li);
+      } else if (e.ty === 'File' || e.ty === 'File'){
+        const li = document.createElement('li');
+        li.classList.add('file');
+        const full = parentPath + e.name;
+
+        const entry = document.createElement('div');
+        entry.className = 'entry file-entry';
+        const icon = iconForPath(full);
+        entry.innerHTML = `<span class="caret-spacer"></span><span class="icon">${icon}</span><span class="name">${escapeHtml(e.name)}</span>`;
+        entry.dataset.path = full;
+        entry.title = full + ' — ' + humanSize(e.size || 0);
+        entry.addEventListener('click', async (ev)=>{
+          ev.stopPropagation();
+          // unselect others
+          treeEl.querySelectorAll('.entry.selected').forEach(x=>x.classList.remove('selected'));
+          entry.classList.add('selected');
+          await doReadFile(full);
+        });
+        li.appendChild(entry);
+        parentUl.appendChild(li);
+      } else {
+        // unknown entry — skip
+      }
+    }
+  }
+
+  // escape helper
+  function escapeHtml(s){ return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+  // ---------- lightweight file type detection (by extension) ----------
+  function getExt(path){
+    const idx = path.lastIndexOf('.');
+    return idx >= 0 ? path.slice(idx+1).toLowerCase() : '';
+  }
+  function guessModeFromPath(path){
+    const ext = getExt(path);
+    if (!ext) return 'auto';
+    const img = new Set(['png','jpg','jpeg','gif','webp','bmp','avif','apng','svg','ico']);
+    const aud = new Set(['mp3','wav','ogg','oga','m4a','aac','flac','opus','weba']);
+    const txt = new Set(['txt','json','csv','md','yaml','yml','ini','log','xml','html','htm','css','js','ts','toml','rs','c','h','cpp','hpp','py','sh']);
+    if (img.has(ext)) return 'image';
+    if (aud.has(ext)) return 'audio';
+    if (txt.has(ext)) return 'text';
+    return 'auto';
+  }
+
+  // icon mapping for file entries based on detected type
+  function iconForPath(path){
+    const mode = guessModeFromPath(path);
+    if (mode === 'image') return '🖼️';
+    if (mode === 'audio') return '🎵';
+    if (mode === 'text') return '📝';
+    return '📄';
+  }
+
+  // ---------- read a file via paks_read (wasm will call result_data or result_error) ----------
+  async function doReadFile(path){
+    if (!activeEditorPtr) return;
+    setStatus('reading ' + path);
+    lastResult = null;
+    const pathStr = allocString(path);
+    try {
+      exports.paks_read(activeEditorPtr, pathStr.ptr, pathStr.len, keyPtr);
+    } catch (e) {
+      freePtr(pathStr.ptr, pathStr.len);
+      showError('paks_read threw: ' + e);
+      return;
+    }
+    freePtr(pathStr.ptr, pathStr.len);
+
+    if (!lastResult) { showError('read returned no result'); return; }
+    if (lastResult.type === 'error') {
+      const err = readResultAsString(lastResult);
+      lastResult = null;
+      showError('read error: ' + err);
+      return;
+    }
+    if (lastResult.type !== 'data') { showError('read: unexpected result type'); return; }
+    const data = lastResult.buf; // Uint8Array copy
+    lastResult = null;
+    currentFileBytes = new Uint8Array(data); // keep reference for download
+    // switch to file-selected preview state
+    previewEmpty.style.display = 'none';
+    previewCtx.style.display = 'block';
+    filePathEl.textContent = path;
+    currentFilePath = path;
+    // use stored preference or guess from extension; fallback to auto
+    const preferred = previewPrefs.get(path) || guessModeFromPath(path) || 'auto';
+    previewMode.value = preferred;
+    renderPreview();
+    downloadFileBtn.disabled = false;
+    setStatus('file loaded: ' + path);
+  }
+
+  function looksLikeText(u8){
+    // simple heuristic: check if >90% bytes are printable or whitespace
+    let printable = 0;
+    for (let i=0;i<u8.length && i<1024;i++){
+      const b = u8[i];
+      if (b === 9 || b === 10 || b === 13) { printable++; continue; }
+      if (b >= 0x20 && b <= 0x7e) printable++;
+    }
+    return (printable / Math.min(u8.length,1024)) > 0.9;
+  }
+
+  function toHex(u8){
+    const parts = [];
+    for (let i=0;i<u8.length;i++){
+      parts.push(u8[i].toString(16).padStart(2,'0'));
+      if ((i+1) % 16 === 0) parts.push('\n');
+      else parts.push(' ');
+    }
+    return parts.join('').trim();
+  }
+
+  // ---------- preview rendering ----------
+  function clearMedia(){
+    if (currentObjectUrl){
+      try { URL.revokeObjectURL(currentObjectUrl); } catch(e){}
+      currentObjectUrl = null;
+    }
+    previewImg.src = '';
+    previewAudio.src = '';
+    previewImg.style.display = 'none';
+    previewAudio.style.display = 'none';
+    previewMedia.style.display = 'none';
+  }
+
+  function renderPreview(){
+    if (!currentFileBytes){ return; }
+    const mode = previewMode.value;
+    // hide all
+    previewEl.style.display = 'none';
+    previewHexEl.style.display = 'none';
+    clearMedia();
+
+    if (mode === 'text'){
+      let textPreview = null;
+      try { textPreview = textDecoder.decode(currentFileBytes); } catch(e){ textPreview = null; }
+      if (textPreview !== null){
+        previewEl.textContent = textPreview;
+      } else {
+        previewEl.textContent = 'unable to decode as UTF-8';
+      }
+      previewEl.style.display = 'block';
+      return;
+    }
+
+    if (mode === 'hex'){
+      previewEl.textContent = `hex preview (${Math.min(512, currentFileBytes.length)} of ${humanSize(currentFileBytes.length)})`;
+      previewEl.style.display = 'block';
+      previewHexEl.style.display = 'block';
+      previewHexBox.textContent = toHex(currentFileBytes.subarray(0,512));
+      return;
+    }
+
+    if (mode === 'image'){
+      const blob = new Blob([currentFileBytes]);
+      currentObjectUrl = URL.createObjectURL(blob);
+      previewImg.src = currentObjectUrl;
+      previewImg.style.display = 'block';
+      previewMedia.style.display = 'block';
+      return;
+    }
+
+    if (mode === 'audio'){
+      const blob = new Blob([currentFileBytes]);
+      currentObjectUrl = URL.createObjectURL(blob);
+      previewAudio.src = currentObjectUrl;
+      previewAudio.style.display = 'block';
+      previewMedia.style.display = 'block';
+      return;
+    }
+
+    // auto mode (default): try text, else show hex snippet with hint
+    let textPreview = null;
+    try { textPreview = textDecoder.decode(currentFileBytes); } catch(e){ textPreview = null; }
+    if (textPreview !== null && looksLikeText(currentFileBytes)){
+      previewEl.textContent = textPreview;
+      previewEl.style.display = 'block';
+      return;
+    }
+    previewEl.textContent = `binary file (${humanSize(currentFileBytes.length)}) — choose image/audio/hex to preview`;
+    previewEl.style.display = 'block';
+    previewHexEl.style.display = 'block';
+    previewHexBox.textContent = toHex(currentFileBytes.subarray(0,512));
+  }
+
+  previewMode.addEventListener('change', ()=>{
+    // remember user choice per file
+    if (currentFilePath){
+      previewPrefs.set(currentFilePath, previewMode.value);
+    }
+    renderPreview();
+  });
+
+  // ---------- human readable sizes ----------
+  function humanSize(n){
+    const KiB = 1024;
+    const MiB = KiB * 1024;
+    const GiB = MiB * 1024;
+    const TiB = GiB * 1024;
+    if (n < 4 * KiB) return `${n} B`;
+    if (n < 4 * MiB) return `${(n / KiB).toFixed(1)} KiB`;
+    if (n < 4 * GiB) return `${(n / MiB).toFixed(1)} MiB`;
+    if (n < 4 * TiB) return `${(n / GiB).toFixed(1)} GiB`;
+    return `${(n / TiB).toFixed(1)} TiB`;
+  }
+
+  // ---------- download current file ----------
+  downloadFileBtn.addEventListener('click', ()=>{
+    if (!currentFileBytes || !filePathEl.textContent) return;
+    const blob = new Blob([currentFileBytes], { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    // sanitize path for name
+    const name = filePathEl.textContent.split('/').pop() || 'file.bin';
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setStatus('download started');
+  });
+
+  // ---------- close (unload) ----------
+  function doClose(){
+    // clear UI, free wasm pointers
+    clearMedia();
+    if (activeEditorPtr) {
+      try { exports.paks_close(activeEditorPtr); } catch(e){ console.warn(e); }
+      activeEditorPtr = 0;
+    }
+    if (keyPtr) {
+      try { exports.key_free(keyPtr); } catch(e){ console.warn(e); }
+      keyPtr = 0;
+    }
+    if (uploadedDataPtr) {
+      try { freePtr(uploadedDataPtr, uploadedDataLen); } catch(e){}
+      uploadedDataPtr = 0; uploadedDataLen = 0;
+    }
+    currentFileBytes = null;
+    previewEmpty.style.display = 'block';
+    previewCtx.style.display = 'none';
+    previewHexEl.style.display = 'none';
+    treeEl.innerHTML = '';
+    contentView.style.display = 'none';
+    uploadView.style.display = 'flex';
+    headerFilename.textContent = '';
+    headerClose.style.display = 'none';
+    setStatus('closed');
+  }
+  // header X click to close
+  headerClose.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    if (activeEditorPtr) doClose();
+  });
+
+  // ---------- helper to allocate string conveniently ----------
+  function allocString(s){
+    const u8 = textEncoder.encode(s);
+    const ptr = exports.alloc(u8.length);
+    if (!ptr) throw new Error('alloc failed');
+    const mem = new Uint8Array(memory.buffer, ptr, u8.length);
+    mem.set(u8);
+    return { ptr, len: u8.length };
+  }
+
+  // ---------- initial status ----------
+  setStatus('ready');
+
+  // If user navigated here with a file param (optional), could auto load — not implemented now.
+
+})();
+</script>
+</body>
+</html>
