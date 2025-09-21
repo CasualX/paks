@@ -7,12 +7,14 @@ extern "C" {
 	fn result_error(ptr: *const u8, len: usize);
 }
 
-fn custom_getrandom(buf: &mut [u8]) -> Result<(), getrandom::Error> {
-	unsafe { random_bytes(buf.as_mut_ptr(), buf.len()) };
+#[no_mangle]
+unsafe extern "Rust" fn __getrandom_v03_custom(
+	dest: *mut u8,
+	len: usize,
+) -> Result<(), getrandom::Error> {
+	unsafe { random_bytes(dest, len) };
 	Ok(())
 }
-
-getrandom::register_custom_getrandom!(custom_getrandom);
 
 #[no_mangle]
 pub fn alloc(size: usize) -> *mut u8 {

@@ -36,7 +36,7 @@ fn counter(nonce: Block, i: usize) -> Block {
 	[nonce[0], nonce[1].wrapping_add(i as u64)]
 }
 fn random(blocks: &mut [Block]) {
-	if let Err(_) = getrandom::getrandom(dataview::bytes_mut(blocks)) {
+	if let Err(_) = getrandom::fill(dataview::bytes_mut(blocks)) {
 		random_error()
 	}
 }

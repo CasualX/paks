@@ -1,5 +1,5 @@
-PAKS file
-=========
+PAKS archive
+============
 
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![crates.io](https://img.shields.io/crates/v/paks.svg)](https://crates.io/crates/paks)

@@ -10,4 +10,4 @@ crate-type = ["cdylib"]
 paks = { path = "../" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-getrandom = { version = "0.2", features = ["custom"] }
+getrandom = { version = "0.3" }

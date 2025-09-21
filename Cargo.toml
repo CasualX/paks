@@ -6,7 +6,7 @@ members = [
 
 [package]
 name = "paks"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 
@@ -17,5 +17,5 @@ readme = "readme.md"
 keywords = ["pak", "archive", "encrypted", "zip"]
 
 [dependencies]
-getrandom = "0.2"
+getrandom = "0.3"
 dataview = { version = "~1.0", default-features = false }
