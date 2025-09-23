@@ -89,7 +89,7 @@ These operations are performed on a per-file basis, the whole PAKS file does not
 
 */
 
-use std::{cmp, fmt, mem, ops, slice, str};
+use std::{cmp, fmt, mem, num, ops, slice, str};
 use std::io::ErrorKind;
 
 use dataview::Pod;
@@ -135,6 +135,11 @@ pub type Block = [u64; 2];
 ///
 /// All PAKS files are encrypted with the Speck128/128 cipher.
 pub type Key = [u64; 2];
+
+/// Parses a hexadecimal string into a Key.
+pub fn parse_key(s: &str) -> Result<Key, num::ParseIntError> {
+	u128::from_str_radix(s, 16).map(|val| [(val & 0xffffffffffffffff) as u64, (val >> 64) as u64])
+}
 
 const BLOCK_SIZE: usize = mem::size_of::<Block>();
 // const KEY_SIZE: usize = mem::size_of::<Key>();

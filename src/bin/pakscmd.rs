@@ -33,9 +33,9 @@ fn main() {
 }
 
 fn parse_key(s: &str) -> Option<paks::Key> {
-	match u128::from_str_radix(s, 16) {
-		Ok(val) => {
-			Some([(val & 0xffffffffffffffff) as u64, (val >> 64) as u64])
+	match paks::parse_key(s) {
+		Ok(key) => {
+			Some(key)
 		},
 		Err(err) => {
 			eprintln!("Error parsing key argument: {}", err);
